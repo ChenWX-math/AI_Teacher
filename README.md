@@ -13,15 +13,15 @@
 
 ## 技术栈
 
-| 模块 | 技术 |
-| --- | --- |
-| Web 界面 | Streamlit |
-| LLM | DeepSeek OpenAI-compatible API |
-| LLM 编排 | LangChain 1.x / LCEL |
-| Embedding | DashScope `text-embedding-v3` |
-| 向量数据库 | Milvus Lite / PyMilvus |
-| 会话记忆 | `RunnableWithMessageHistory` + JSON |
-| 配置管理 | `python-dotenv` |
+| 模块       | 技术                                  |
+| ---------- | ------------------------------------- |
+| Web 界面   | Streamlit                             |
+| LLM        | DeepSeek OpenAI-compatible API        |
+| LLM 编排   | LangChain 1.x / LCEL                  |
+| Embedding  | DashScope`text-embedding-v3`        |
+| 向量数据库 | Milvus Lite / PyMilvus                |
+| 会话记忆   | `RunnableWithMessageHistory` + JSON |
+| 配置管理   | `python-dotenv`                     |
 
 ## 目录结构
 
@@ -134,7 +134,7 @@ streamlit run ai_teacher_app.py
 
 ## 当前边界
 
-- 当前项目是个人学习和简历展示用的 MVP，不包含用户登录、权限系统和远程部署。
+- 不包含用户登录、权限系统和远程部署。
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
 - 当前 Agent 和联网工具不是核心依赖。项目优先保证确定性的教材检索和教学回答流程。
 
@@ -143,4 +143,3 @@ streamlit run ai_teacher_app.py
 - `AI智能教师_完整教学文档.md`：从 LangChain 基础到项目实现的完整讲解。
 - `Phase2_实现教程.md`：会话管理和健壮性实现记录。
 - `Phase3_RAG实施记录.md`：Embedding、Milvus 和 RAG 实现记录。
-
