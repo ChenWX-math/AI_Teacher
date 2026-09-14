@@ -1,0 +1,75 @@
+# 英语阅读理解
+
+## 一、四大题型与解题策略
+
+### 1. 细节理解题（占比最大）
+特征：针对文中具体信息提问（who/what/when/where/why/how）
+策略：
+- 读题干→找关键词→定位原文→比对选项
+- 注意同义替换（原文 beautiful → 选项 attractive）
+- 警惕偷换概念、张冠李戴、范围扩大/缩小
+
+### 2. 推理判断题
+特征：含 infer, imply, suggest, conclude, learn from 等词
+策略：
+- 正确答案一定是"推出来的"，不是原文照抄
+- 推理只推一步，不跳跃推理
+- 排除过于绝对、文中未提及的选项
+
+### 3. 主旨大意题
+特征：main idea, mainly about, best title, purpose
+策略：
+- 看首段和尾段（主题句常在此）
+- 看每段首句（段落主题句）
+- 排除以偏概全（只是某段内容）和范围过大（超出文章范围）
+
+### 4. 词义猜测题
+特征：猜画线词/短语的意思
+策略：
+- 上下文解释法：后面有 that is, in other words, means
+- 转折对比法：not...but..., unlike..., on the contrary
+- 举例推断法：such as, for example 后面的例子
+- 构词法：前缀(un-/dis-/re-)、后缀(-tion/-able/-less)
+
+## 二、四步阅读法
+
+Step 1 — 扫读题干（不读选项）：了解文章主题和考点分布
+Step 2 — 通读全文：抓主题句、转折词、因果词
+Step 3 — 逐一解题：定位→比对→选择
+Step 4 — 检查核对：确认答案与文章一致
+
+## 三、阅读技巧
+
+### 1. 长难句拆分
+策略：找主干（主谓宾）→ 剥从句 → 抓修饰成分
+示例：The scientist, who has devoted his life to the research that could change the way we understand disease, remains humble.
+主干：The scientist remains humble.（就这 4 个词是核心）
+
+### 2. 关键信号词
+- 转折：but, however, yet, while, on the contrary（转折后=重点）
+- 因果：because, so, therefore, as a result, thus（因果=逻辑链）
+- 并列：and, also, besides, furthermore（并列=信息点多处）
+- 举例：for example, such as（举例=帮理解但不一定是核心）
+- 总结：in conclusion, to sum up（总结句=主旨所在）
+
+### 3. 常见干扰项类型
+- 无中生有：文章没说的内容
+- 偷换概念：换了主语/宾语/修饰语
+- 以偏概全：用部分代替整体
+- 过度推断：文章没给的结论
+- 张冠李戴：A 的特点安在 B 上
+
+## 四、七选五专项
+
+策略：
+- 先读选项，标记代词和逻辑连接词
+- 看空格前后句，找逻辑关系（并列/转折/因果/举例）
+- 代词回指：this/that/these/it → 前文一定有对应名词
+- 最后把剩余选项逐个代入，读一遍是否通顺
+
+## 五、易错点
+- 读了选项后"先入为主"，不再回原文验证
+- 把个人常识代入（要忠实于作者观点）
+- 忽视否定词（not, never, hardly, seldom）
+- 长难句看不懂就跳，关键信息恰恰在那
+- 做完不检查，选择题答案位置填错

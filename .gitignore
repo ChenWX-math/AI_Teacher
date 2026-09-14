@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.py[cod]
+
+# 本地运行产生的内容
+sessions/
+data/milvus/
+*.db
+*.db-wal
+*.db-shm
+.streamlit/
+
+# 本地编辑器和临时文件
+.pytest_cache/
+*.tmp

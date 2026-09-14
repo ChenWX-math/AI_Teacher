@@ -1,0 +1,131 @@
+{
+  "_description": "RAG 检索精度测试问题集。每个科目 5-10 道问题，问题答案必须能在 data/ 对应资料中找到。",
+  "subjects": {
+    "数学": [
+      {
+        "question": "二次函数的顶点坐标公式是什么？",
+        "expected_sources": ["数学/一次函数与二次函数.txt"],
+        "expected_keywords": ["顶点", "-b/(2a)", "(4ac-b²)/(4a)"]
+      },
+      {
+        "question": "韦达定理的内容是什么？",
+        "expected_sources": ["数学/一次函数与二次函数.txt"],
+        "expected_keywords": ["x₁ + x₂", "x₁·x₂", "-b/a", "c/a"]
+      },
+      {
+        "question": "正弦定理的公式是什么？",
+        "expected_sources": ["数学/三角函数与解三角形.txt"],
+        "expected_keywords": ["a/sinA", "b/sinB", "c/sinC"]
+      },
+      {
+        "question": "等差数列的通项公式和前n项和公式？",
+        "expected_sources": ["数学/数列.txt"],
+        "expected_keywords": ["a₁", "公差", "d"]
+      },
+      {
+        "question": "导数的几何意义是什么？",
+        "expected_sources": ["数学/导数及其应用.txt"],
+        "expected_keywords": ["切线斜率", "函数在某点的导数"]
+      },
+      {
+        "question": "椭圆的标准方程是什么？",
+        "expected_sources": ["数学/解析几何.txt"],
+        "expected_keywords": ["x²/a²", "y²/b²", "椭圆"]
+      },
+      {
+        "question": "一次函数的斜率怎么求？",
+        "expected_sources": ["数学/一次函数与二次函数.txt"],
+        "expected_keywords": ["k", "(y₂ - y₁) / (x₂ - x₁)"]
+      },
+      {
+        "question": "二次函数图像平移的口诀是什么？",
+        "expected_sources": ["数学/一次函数与二次函数.txt"],
+        "expected_keywords": ["左加右减", "上加下减"]
+      }
+    ],
+    "物理": [
+      {
+        "question": "牛顿第二定律的公式是什么？",
+        "expected_sources": ["物理/力学基础.txt"],
+        "expected_keywords": ["F = ma", "力是改变运动状态的原因"]
+      },
+      {
+        "question": "动能定理的内容是什么？",
+        "expected_sources": ["物理/力学基础.txt"],
+        "expected_keywords": ["W_合", "ΔEk", "½mv₂²"]
+      },
+      {
+        "question": "匀变速直线运动的五大基本公式有哪些？",
+        "expected_sources": ["物理/力学基础.txt"],
+        "expected_keywords": ["v = v₀ + at", "v² - v₀² = 2ax"]
+      },
+      {
+        "question": "平抛运动的水平位移公式是什么？",
+        "expected_sources": ["物理/力学基础.txt"],
+        "expected_keywords": ["x = v₀t", "平抛"]
+      },
+      {
+        "question": "楞次定律的内容是什么？",
+        "expected_sources": ["物理/电磁学.txt"],
+        "expected_keywords": ["阻碍", "磁通量变化", "楞次"]
+      },
+      {
+        "question": "带电粒子在匀强磁场中的运动半径公式？",
+        "expected_sources": ["物理/电磁学.txt"],
+        "expected_keywords": ["r = mv/(qB)", "洛伦兹力"]
+      },
+      {
+        "question": "超重和失重分别发生在什么情况下？",
+        "expected_sources": ["物理/力学基础.txt"],
+        "expected_keywords": ["超重", "失重", "加速度向上", "加速度向下"]
+      },
+      {
+        "question": "打点计时器实验中如何用逐差法求加速度？",
+        "expected_sources": ["物理/实验探究.txt"],
+        "expected_keywords": ["Δx", "T²", "逐差法"]
+      }
+    ],
+    "化学": [
+      {
+        "question": "钠与水反应的化学方程式是什么？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["2Na", "2H₂O", "2NaOH", "H₂↑"]
+      },
+      {
+        "question": "铝为什么被称为两性金属？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["两性", "酸", "强碱", "Al"]
+      },
+      {
+        "question": "如何检验Fe³⁺离子？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["KSCN", "溶液变红", "Fe³⁺"]
+      },
+      {
+        "question": "浓硫酸有哪些特性？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["吸水性", "脱水性", "强氧化性"]
+      },
+      {
+        "question": "SO₂的漂白和Cl₂的漂白有什么区别？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["SO₂", "Cl₂", "化合", "氧化", "可逆"]
+      },
+      {
+        "question": "实验室如何制取氨气？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["NH₄Cl", "Ca(OH)₂", "NH₃↑"]
+      },
+      {
+        "question": "化学反应速率受哪些因素影响？",
+        "expected_sources": ["化学/化学反应原理.txt"],
+        "expected_keywords": ["浓度", "温度", "催化剂"]
+      },
+      {
+        "question": "浓硝酸与金属反应为什么不生成氢气？",
+        "expected_sources": ["化学/元素化合物.txt"],
+        "expected_keywords": ["强氧化性", "NO", "NO₂", "H₂"]
+      }
+    ]
+  }
+}

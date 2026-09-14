@@ -1,0 +1,98 @@
+# 英语语法核心
+
+## 一、时态（16种，高考重点6种）
+
+### 1. 一般现在时
+构成：do/does
+用法：客观真理、习惯动作、时刻表
+关键词：always, usually, often, every day
+例句：The earth goes around the sun.
+
+### 2. 一般过去时
+构成：did / was/were
+用法：过去发生的动作或状态
+关键词：yesterday, last week, ago, in 2010
+例句：I visited Beijing last summer.
+
+### 3. 现在完成时（高频易错！）
+构成：have/has + done
+用法：过去动作对现在有影响 / 持续到现在
+关键词：already, yet, ever, never, since, for, so far
+对比：I lost my key.（过去丢了，现在不一定没找到）
+      I have lost my key.（现在还没找到）
+
+### 4. 过去完成时
+构成：had + done
+用法：过去的过去（用在宾语从句或 when/before/after 从句中）
+例句：She had finished homework before she went out.
+
+### 5. 现在进行时
+构成：am/is/are + doing
+用法：此刻正在进行的动作
+注意：表状态动词不用进行时（know, like, belong, understand）
+
+### 6. 一般将来时
+构成：will do / be going to do / be doing（表将来）
+区别：will 表临时决定，be going to 表计划打算，be doing 表安排好的事
+
+## 二、三大从句
+
+### 1. 定语从句
+关系代词：who（人/主）、whom（人/宾）、which（物）、that（人或物）、whose（所属）
+关系副词：when（时间）、where（地点）、why（原因）
+
+that 不能用的情况（逗号后）：非限制性定语从句
+which 不能用的情况：先行词被最高级/序数词修饰
+
+### 2. 名词性从句
+- 主语从句：What he said is true.
+- 宾语从句：I know that he is honest.
+- 表语从句：The truth is that he lied.
+- 同位语从句：The news that he won surprised us.（说明 news 的内容）
+
+that 不能省略的情况：主语从句、同位语从句
+whether 与 if：主语从句只用 whether，宾语从句两者均可
+
+### 3. 状语从句
+- 时间：when/while/as/after/since/until
+- 条件：if/unless/as long as
+- 原因：because/since/as（because 语气最强）
+- 让步：although/though/even if
+- 目的：so that/in order that
+- 结果：so...that.../such...that...（so + 形/副，such + 名词）
+
+## 三、非谓语动词
+
+### 1. 动名词（V-ing 作名词）
+常见搭配：enjoy/finish/mind/suggest/avoid/practice + doing
+介词后必须用 doing：look forward to doing, be used to doing
+
+### 2. 不定式（to do）
+常见搭配：want/hope/decide/plan/refuse/pretend + to do
+不带 to 的情况：make/let/have sb do, would rather do
+
+### 3. 分词（V-ing / V-ed 作定状补）
+- V-ing 表主动进行：the singing girl
+- V-ed 表被动完成：a broken window
+- 独立主格：Weather permitting, we'll go out.
+
+## 四、虚拟语气
+
+### 1. if 条件句虚拟
+- 与现在相反：If I were you, I would go.
+- 与过去相反：If I had known, I would have come.
+- 与将来相反：If it should rain, we would stay home.
+
+### 2. 名词性从句中的虚拟
+- 建议类动词后：suggest/insist/order/demand/require + (should) do
+- It is necessary/important that + (should) do
+
+### 3. wish / if only 虚拟
+wish + 过去式（现在）/ had done（过去）/ would do（将来）
+
+## 五、易错点
+- 现在完成时与一般过去时混淆
+- 定语从句 that 与 which 选用不当
+- 主将从现（主句将来时，从句一般现在时）
+- suggest 表"暗示"时不虚拟，表"建议"时虚拟
+- 非谓语动词的逻辑主语判断错误
