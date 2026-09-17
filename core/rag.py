@@ -112,6 +112,14 @@ class KnowledgeBase:
         """把资料切分、向量化并写入 Milvus。"""
         ensure_milvus_connection()
         documents = self.split_documents(self.load_documents(subject))
+        if subject and not drop_old:
+            # 单学科增量重建时先删除该学科的旧片段，否则 auto_id 会让每次重建
+            # 都追加一份重复数据。其他学科的数据保持不变。
+            self.load()
+            assert self.vector_store is not None
+            self.vector_store.delete(expr=self._subject_filter(subject))
+            self.vector_store.add_documents(documents)
+            return self
         self.vector_store = CompatibleMilvus.from_documents(
             documents=documents, embedding=get_embeddings(),
             collection_name=self.collection_name,
@@ -137,11 +145,14 @@ class KnowledgeBase:
             raise ValueError("query 不能为空")
         if k <= 0:
             raise ValueError("k 必须大于 0")
-        expr = None
-        if subject:
-            escaped = subject.replace('"', '\\"')
-            expr = f'subject == "{escaped}"'
+        expr = self._subject_filter(subject) if subject else None
         return self.vector_store.similarity_search(query, k=k, expr=expr)
+
+    @staticmethod
+    def _subject_filter(subject: str) -> str:
+        """生成 Milvus 学科过滤表达式。"""
+        escaped = subject.replace("\\", "\\\\").replace('"', '\\"')
+        return f'subject == "{escaped}"'
 
     @staticmethod
     def format_context(documents: list[Document]) -> str:

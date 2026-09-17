@@ -16,15 +16,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
-
-# 确保项目根目录在 sys.path 中
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
 
 from core.rag import KnowledgeBase
 
@@ -85,8 +79,6 @@ def run_subject_tests(kb: KnowledgeBase, subject: str, questions: list[dict],
 
         all_content = "\n".join(doc.page_content for doc in docs)
         kw_matched, kw_missed = check_keywords(all_content, keywords)
-        kw_rate = kw_matched / len(keywords) * 100 if keywords else 100.0
-
         status = "PASS" if hit_expected else "WEAK"
         if hit_expected:
             results["passed"] += 1

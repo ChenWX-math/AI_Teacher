@@ -34,6 +34,37 @@ def get_optional(name: str, default: str) -> str:
     return os.getenv(name, default).strip()
 
 
+def get_optional_int(name: str, default: int, minimum: int | None = None) -> int:
+    """读取可选整数配置，并在配置错误时给出明确提示。"""
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"配置 {name} 必须是整数，当前值为：{raw!r}") from exc
+    if minimum is not None and value < minimum:
+        raise ValueError(f"配置 {name} 必须大于等于 {minimum}，当前值为：{value}")
+    return value
+
+
+def get_optional_float(
+    name: str, default: float, minimum: float | None = None, maximum: float | None = None
+) -> float:
+    """读取可选浮点数配置，并验证取值范围。"""
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"配置 {name} 必须是数字，当前值为：{raw!r}") from exc
+    if minimum is not None and value < minimum:
+        raise ValueError(f"配置 {name} 必须大于等于 {minimum}，当前值为：{value}")
+    if maximum is not None and value > maximum:
+        raise ValueError(f"配置 {name} 必须小于等于 {maximum}，当前值为：{value}")
+    return value
+
+
 def get_milvus_uri() -> str:
     """返回远程 URI 或本地数据库路径。"""
-    return get_optional("MILVUS_URI", get_required("MILVUS_DB_PATH"))
+    # 不把 get_required() 放进默认参数：Python 会先计算函数参数，导致即使已经
+    # 配置远程 MILVUS_URI，仍错误地要求 MILVUS_DB_PATH。
+    remote_uri = os.getenv("MILVUS_URI", "").strip()
+    return remote_uri or get_required("MILVUS_DB_PATH")

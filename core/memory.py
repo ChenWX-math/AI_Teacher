@@ -129,8 +129,9 @@ def load_session_meta(session_id, directory=None):
         return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError, TypeError):
         return {}
 
 

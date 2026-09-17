@@ -1,12 +1,13 @@
 """AI 智能教师 Streamlit 应用（Phase 2）。"""
 import streamlit as st
 from langchain_core.runnables.history import RunnableWithMessageHistory
+
 from core.llm import get_llm
 from core.memory import get_session_history
 from core.prompt_builder import build_chat_prompt
-from prompts.prompt_manager import PromptManager
-from core.session_manager import SessionManager
 from core.rag import KnowledgeBase
+from core.session_manager import SessionManager
+from prompts.prompt_manager import PromptManager
 
 st.set_page_config(page_title="AI智能教师", page_icon="🧑‍🏫", layout="wide")
 pm = PromptManager()
@@ -50,8 +51,10 @@ def extract_text(chunk):
         str: 提取出的文本字符串，若 chunk 为 None 则返回空字符串
     """
     content = getattr(chunk, "content", chunk)
-    if content is None: return ""
-    if isinstance(content, str): return content
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
     if isinstance(content, list):
         return "".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in content)
     return str(content)
@@ -98,7 +101,9 @@ if not current_session:
     st.info("点击左侧「➕ 新建会话」开始对话。")
     st.stop()
 
-st.caption(f"当前会话：{current_session} · {subject}教师 · {gender} · {personality or '未设置性格'}")
+st.caption(
+    f"当前会话：{current_session} · {subject}教师 · {gender} · {personality or '未设置性格'}"
+)
 
 history = session_manager.get_history()
 messages = []
@@ -135,8 +140,11 @@ if user_prompt:
             for chunk in chain.stream(chain_input, config=config):  # type: ignore
                 text = extract_text(chunk)
                 if text:
-                    full_response += text; placeholder.markdown(full_response)
+                    full_response += text
+                    placeholder.markdown(full_response)
             if not full_response:
                 st.warning("模型没有返回文本内容，本次消息未写入历史。")
-        except (EnvironmentError, ValueError) as exc: st.error(str(exc))
-        except Exception as exc: st.error(f"调用模型失败，请检查网络或服务状态：{exc}")
+        except (EnvironmentError, ValueError) as exc:
+            st.error(str(exc))
+        except Exception as exc:
+            st.error(f"调用模型失败，请检查网络或服务状态：{exc}")

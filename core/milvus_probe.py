@@ -12,8 +12,9 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from core.config import ENV_FILE, PROJECT_ROOT, get_milvus_uri, get_optional
 from pymilvus import MilvusClient
+
+from core.config import ENV_FILE, PROJECT_ROOT, get_milvus_uri, get_optional
 
 
 def resolve_uri(uri: str) -> str:

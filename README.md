@@ -44,14 +44,15 @@ AI_Teacher/
 ├─ tests/
 │  ├─ test_questions.json         # RAG 测试问题集
 │  └─ test_rag_retrieval.py       # 检索测试脚本
-├─ Phase3_RAG实施记录.md
 ├─ .env.example
+├─ requirements-dev.txt           # 测试与代码检查依赖
+├─ pyproject.toml                 # pytest / Ruff 配置
 └─ requirements.txt
 ```
 
 ## 环境要求
 
-- Python 3.11+（当前开发环境为 Python 3.13）
+- Python 3.11+（当前已验证环境为 Python 3.12）
 - 已安装 Conda 或其他 Python 虚拟环境工具
 - DeepSeek API Key
 - DashScope API Key
@@ -60,7 +61,7 @@ AI_Teacher/
 ## 安装
 
 ```powershell
-conda create -n langchain1.2 python=3.13
+conda create -n langchain1.2 python=3.12
 conda activate langchain1.2
 cd D:\桌面\Studing\data-learning\AI_application\AI_Teacher
 pip install -r requirements.txt
@@ -79,6 +80,9 @@ pip install faiss-cpu
 
 ```env
 DEEPSEEK_API_KEY=你的DeepSeek密钥
+DEEPSEEK_MODEL=deepseek-flash
+DEEPSEEK_TIMEOUT_SECONDS=60
+DEEPSEEK_MAX_RETRIES=2
 DASHSCOPE_API_KEY=你的DashScope密钥
 DASHSCOPE_EMBEDDING_MODEL=text-embedding-v3
 
@@ -87,6 +91,8 @@ MILVUS_COLLECTION=ai_teacher_knowledge
 ```
 
 程序会通过 `python-dotenv` 自动读取 `AI_Teacher/.env`。`.env`、会话记录和 Milvus 数据库已加入 `.gitignore`，不要上传或公开真实密钥。
+
+如果使用远程 Milvus，可改为配置 `MILVUS_URI` 和可选的 `MILVUS_TOKEN`；此时不需要 `MILVUS_DB_PATH`。
 
 ## 构建知识库
 
@@ -108,6 +114,15 @@ python -m tests.test_rag_retrieval
 ```
 
 检索测试会检查是否返回结果、来源是否属于预期教材文件，并统计每个学科的通过情况。Embedding 查询会产生 DashScope API 调用。
+
+不调用外部 API 的单元测试：
+
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+单元测试使用临时目录和纯本地逻辑，不会产生模型费用。`tests.test_rag_retrieval` 属于需要已构建向量库和 DashScope API 的集成评测，应按需单独运行。
 
 ## 启动应用
 
@@ -138,8 +153,12 @@ streamlit run ai_teacher_app.py
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
 - 当前 Agent 和联网工具不是核心依赖。项目优先保证确定性的教材检索和教学回答流程。
 
-## 学习文档
+## 开发检查
 
-- `AI智能教师_完整教学文档.md`：从 LangChain 基础到项目实现的完整讲解。
-- `Phase2_实现教程.md`：会话管理和健壮性实现记录。
-- `Phase3_RAG实施记录.md`：Embedding、Milvus 和 RAG 实现记录。
+提交代码前建议运行：
+
+```powershell
+python -m compileall -q ai_teacher_app.py core prompts tests
+python -m pytest -q
+ruff check ai_teacher_app.py core prompts tests
+```
