@@ -2,6 +2,7 @@
 import streamlit as st
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
+from core.context_manager import LayeredContextManager
 from core.llm import get_llm
 from core.memory import get_session_history
 from core.prompt_builder import build_chat_prompt
@@ -9,6 +10,7 @@ from core.rag import KnowledgeBase
 from core.session_manager import SessionManager
 from core.teacher_agent import build_teacher_agent, run_teacher_agent
 from core.teacher_tools import create_teacher_tools
+from core.teaching_state import load_teaching_state, save_teaching_state
 from prompts.prompt_manager import PromptManager
 
 st.set_page_config(page_title="AI智能教师", page_icon="🧑‍🏫", layout="wide")
@@ -155,11 +157,18 @@ if user_prompt:
         placeholder, full_response = st.empty(), ""
         try:
             if agent_mode:
+                teaching_state = load_teaching_state(current_session)
+
+                def save_current_state(state):
+                    save_teaching_state(current_session, state)
+
                 tools = create_teacher_tools(
                     subject=subject,
                     top_k=top_k,
                     knowledge_base_loader=get_knowledge_base,
                     llm_factory=lambda: get_llm(streaming=False, temperature=0.2),
+                    teaching_state=teaching_state,
+                    state_saver=save_current_state,
                 )
                 agent = build_teacher_agent(
                     model=get_llm(streaming=False),
@@ -167,6 +176,12 @@ if user_prompt:
                     subject=subject,
                     gender=gender,
                     personality=personality,
+                    teaching_state=teaching_state,
+                )
+                context_manager = LayeredContextManager(
+                    summarizer=lambda prompt: extract_text(
+                        get_llm(streaming=False, temperature=0).invoke(prompt)
+                    )
                 )
                 try:
                     with st.spinner("AI 教师正在判断并使用合适的教学工具..."):
@@ -177,12 +192,22 @@ if user_prompt:
                             agent,
                             user_input=user_prompt,
                             history=agent_history,
+                            context_manager=context_manager,
+                            teaching_state=teaching_state,
+                            state_saver=save_current_state,
                         )
                     full_response = agent_result.answer
                     placeholder.markdown(full_response)
                     if agent_result.tool_names:
                         st.caption("已使用工具：" + "、".join(agent_result.tool_names))
                     st.caption(f"Agent 耗时：{agent_result.duration_ms / 1000:.1f} 秒")
+                    if agent_result.used_summary:
+                        st.caption(
+                            f"已使用分层记忆 · 本轮上下文约 "
+                            f"{agent_result.context_tokens} tokens"
+                        )
+                    if agent_result.context_fallback_used:
+                        st.caption("摘要暂不可用，本轮已自动采用最近消息窗口。")
                     render_sources(agent_result.sources)
                 except Exception:
                     st.warning("Agent 模式暂时不可用，已自动回退为经典回答。")

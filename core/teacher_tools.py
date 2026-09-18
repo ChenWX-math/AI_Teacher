@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -10,6 +11,9 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
 from core.rag import KnowledgeBase
+from core.teaching_state import ExerciseState, GradeState, TeachingState
+
+logger = logging.getLogger(__name__)
 
 
 class SearchTextbookInput(BaseModel):
@@ -24,7 +28,10 @@ class GenerateExerciseInput(BaseModel):
 
 
 class GradeAnswerInput(BaseModel):
-    question: str = Field(description="需要批改的完整题目")
+    question: str = Field(
+        default="",
+        description="需要批改的题目；如果是当前练习题可留空，由系统从教学状态读取",
+    )
     student_answer: str = Field(description="学生提交的答案或解题过程")
 
 
@@ -44,6 +51,7 @@ class GradeResult(BaseModel):
     error_reason: str
     hint: str
     reference_solution: str
+    next_step: str
 
 
 def _invoke_structured(
@@ -66,8 +74,28 @@ def create_teacher_tools(
     top_k: int,
     knowledge_base_loader: Callable[[], KnowledgeBase],
     llm_factory: Callable[[], BaseChatModel],
+    teaching_state: TeachingState | None = None,
+    state_saver: Callable[[TeachingState], None] | None = None,
 ) -> list[BaseTool]:
     """创建绑定当前学科的三个工具；知识库只在实际检索时加载。"""
+    state = teaching_state if teaching_state is not None else TeachingState(subject=subject)
+    subject_changed = state.subject is not None and state.subject != subject
+    if subject_changed:
+        state.current_topic = None
+        state.current_exercise = None
+        state.last_grade = None
+    state.subject = subject
+
+    def persist_state() -> None:
+        if state_saver:
+            try:
+                state_saver(state)
+            except Exception:
+                # 状态是增强能力，写盘失败不应吞掉已经生成的题目或批改结果。
+                logger.exception("teaching_state_save_failed subject=%s", subject)
+
+    if subject_changed:
+        persist_state()
 
     def search_textbook(query: str) -> tuple[str, dict[str, Any]]:
         """检索当前学科教材，用于事实、概念、公式和教材依据类问题。"""
@@ -77,6 +105,8 @@ def create_teacher_tools(
             if not results:
                 return "当前教材没有找到足够相关的资料。", {"sources": []}
             documents = [document for document, _score in results]
+            state.current_topic = query
+            persist_state()
             return knowledge_base.format_context(documents), {
                 "sources": knowledge_base.source_records(results)
             }
@@ -102,6 +132,10 @@ def create_teacher_tools(
         try:
             result = _invoke_structured(llm_factory, ExerciseResult, prompt)
             exercise = ExerciseResult.model_validate(result).model_dump()
+            state.current_topic = exercise["topic"]
+            state.current_exercise = ExerciseState.model_validate(exercise)
+            state.last_grade = None
+            persist_state()
         except Exception as exc:
             error_type = type(exc).__name__
             return (
@@ -119,15 +153,30 @@ def create_teacher_tools(
             content += "\n\n本次先不展示答案和解析，等待学生作答。"
         return content, {"exercise": exercise, "include_answer": include_answer}
 
-    def grade_answer(question: str, student_answer: str) -> tuple[str, dict[str, Any]]:
+    def grade_answer(student_answer: str, question: str = "") -> tuple[str, dict[str, Any]]:
         """批改学生对指定题目的答案，给出得分、错误原因、提示和参考解法。"""
+        resolved_question = question.strip()
+        reference_answer = ""
+        if state.current_exercise:
+            if not resolved_question:
+                resolved_question = state.current_exercise.question
+            if resolved_question == state.current_exercise.question:
+                reference_answer = state.current_exercise.reference_answer
+        if not resolved_question:
+            return (
+                "当前没有可批改的题目，请先提供完整题目或让老师出一道题。",
+                {"needs_question": True},
+            )
         prompt = f"""你是严谨但鼓励学生的高中{subject}教师。请批改答案。
-题目：{question}
+题目：{resolved_question}
 学生答案：{student_answer}
+系统保存的参考答案：{reference_answer or '无，请独立求解'}
 请先独立求解再判断，分数为 0 到 100 的整数。反馈要具体，严格输出要求的 JSON 字段。"""
         try:
             result = _invoke_structured(llm_factory, GradeResult, prompt)
             grade = GradeResult.model_validate(result).model_dump()
+            state.last_grade = GradeState.model_validate(grade)
+            persist_state()
         except Exception as exc:
             error_type = type(exc).__name__
             return (
@@ -141,7 +190,8 @@ def create_teacher_tools(
             f"反馈：{grade['feedback']}\n"
             f"错误原因：{grade['error_reason'] or '无'}\n"
             f"提示：{grade['hint']}\n"
-            f"参考解法：{grade['reference_solution']}"
+            f"参考解法：{grade['reference_solution']}\n"
+            f"下一步建议：{grade['next_step']}"
         )
         return content, {"grade": grade}
 
@@ -166,7 +216,10 @@ def create_teacher_tools(
         StructuredTool.from_function(
             func=grade_answer,
             name="grade_answer",
-            description="学生提交答案、计算结果、解题过程或要求批改时必须使用。",
+            description=(
+                "学生提交答案、计算结果、解题过程或要求批改时必须使用；"
+                "若学生在回答当前练习，question 留空即可从教学状态读取。"
+            ),
             args_schema=GradeAnswerInput,
             response_format="content_and_artifact",
         ),

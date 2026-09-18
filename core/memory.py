@@ -96,7 +96,8 @@ def list_sessions(directory=None):
         (
             name[:-5]
             for name in os.listdir(directory)
-            if name.endswith(".json") and not name.endswith(".meta.json")
+            if name.endswith(".json")
+            and not name.endswith((".meta.json", ".state.json"))
         ),
         reverse=True,
     )
@@ -110,6 +111,9 @@ def delete_session(session_id, directory=None):
     meta_path = os.path.join(directory, f"{session_id}.meta.json")
     if os.path.exists(meta_path):
         os.remove(meta_path)
+    state_path = os.path.join(directory, f"{session_id}.state.json")
+    if os.path.exists(state_path):
+        os.remove(state_path)
 
 
 def save_session_meta(session_id, meta, directory=None):

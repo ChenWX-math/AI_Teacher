@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Any
@@ -13,7 +14,12 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from langchain_core.tools import BaseTool
 
 from core.config import get_optional_int
+from core.context_manager import LayeredContextManager
 from core.memory import JsonChatHistory
+from core.teaching_state import (
+    TeachingState,
+    format_teaching_state_for_agent,
+)
 from prompts.prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
@@ -26,6 +32,9 @@ class TeacherAgentResult:
     sources: list[dict[str, Any]] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)
     duration_ms: int = 0
+    context_tokens: int = 0
+    used_summary: bool = False
+    context_fallback_used: bool = False
 
 
 def build_teacher_agent(
@@ -35,8 +44,12 @@ def build_teacher_agent(
     subject: str,
     gender: str,
     personality: str,
+    teaching_state: TeachingState | None = None,
 ):
     persona = PromptManager().build_system_prompt(subject, gender, personality)
+    teaching_context = format_teaching_state_for_agent(
+        teaching_state if teaching_state is not None else TeachingState()
+    )
     agent_rules = """
 
 【工具使用规则】
@@ -49,8 +62,18 @@ def build_teacher_agent(
 6. 不要声称调用了实际没有调用的工具；一次请求只调用完成任务所必需的工具。
 7. 使用教材工具后，用 [资料 N] 标注依据；资料不足时明确说明。
 8. 工具返回错误时，简要说明并给出可继续操作的建议，不要反复调用同一失败工具。
+9. “再来一道”“换一道”沿用当前知识点和难度；“难一点”“简单一点”在当前难度基础上调整，
+   必须调用 generate_exercise。当前状态不足时才向学生追问。
+10. 学生说“我的答案是……”或“刚才那题……”时，调用 grade_answer 且 question 留空，
+    由工具读取当前练习。不要要求学生重复粘贴系统已经保存的题目。
+11. 学生索要当前题提示时，可以根据当前题目给递进提示，但不要提前泄露最终答案。
+12. 当前练习的参考答案只保存在批改工具内部；除非学生明确要求公布答案，否则不得猜测或泄露。
 """
-    return create_agent(model=model, tools=tools, system_prompt=persona + agent_rules)
+    return create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=persona + "\n\n" + teaching_context + agent_rules,
+    )
 
 
 def _content_to_text(content: Any) -> str:
@@ -69,13 +92,33 @@ def run_teacher_agent(
     user_input: str,
     history: JsonChatHistory,
     recursion_limit: int | None = None,
+    context_manager: LayeredContextManager | None = None,
+    teaching_state: TeachingState | None = None,
+    state_saver: Callable[[TeachingState], None] | None = None,
 ) -> TeacherAgentResult:
     """执行一次 Agent，并只把用户消息和最终回答写入现有聊天历史。"""
     if not user_input.strip():
         raise ValueError("user_input 不能为空")
     limit = recursion_limit or get_optional_int("AGENT_RECURSION_LIMIT", 8, minimum=2)
     previous_messages = list(history.messages)
-    input_messages = [*previous_messages, HumanMessage(content=user_input)]
+    user_message = HumanMessage(content=user_input)
+    prepared_context = None
+    if context_manager and teaching_state:
+        prepared_context = context_manager.prepare(
+            previous_messages,
+            teaching_state,
+            pending_messages=[user_message],
+        )
+        if prepared_context.summary_updated and state_saver:
+            try:
+                state_saver(teaching_state)
+            except Exception:
+                logger.exception(
+                    "teaching_state_save_failed session_id=%s",
+                    history.session_id,
+                )
+        previous_messages = prepared_context.messages
+    input_messages = [*previous_messages, user_message]
     started_at = perf_counter()
     try:
         result = agent.invoke(
@@ -126,4 +169,7 @@ def run_teacher_agent(
         sources=sources,
         artifacts=artifacts,
         duration_ms=duration_ms,
+        context_tokens=prepared_context.estimated_tokens if prepared_context else 0,
+        used_summary=prepared_context.used_summary if prepared_context else False,
+        context_fallback_used=prepared_context.fallback_used if prepared_context else False,
     )

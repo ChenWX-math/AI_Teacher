@@ -14,6 +14,8 @@
 - 可解释检索：回答下方展示教材来源、片段编号、内容预览和归一化相关度。
 - 检索评测：覆盖 9 个学科，输出 Recall@K、MRR 和关键词覆盖率报告。
 - Agent 评测：使用真实模型和合成工具测试工具选择，不向模型发送本地教材。
+- 教学闭环：按会话保存当前知识点、练习题和最近批改结果，支持省略式多轮指令。
+- 分层记忆：较早对话摘要 + 最近原文 + 结构化教学状态，并提供摘要失败回退。
 
 ## 技术栈
 
@@ -24,7 +26,7 @@
 | LLM 编排   | LangChain 1.x / LCEL                  |
 | Embedding  | DashScope`text-embedding-v3`        |
 | 向量数据库 | Milvus Lite / PyMilvus                |
-| 会话记忆   | `RunnableWithMessageHistory` + JSON |
+| 会话记忆   | JSON 历史 + 结构化教学状态 + 分层摘要 |
 | 配置管理   | `python-dotenv`                     |
 
 ## 目录结构
@@ -39,6 +41,10 @@ AI_Teacher/
 │  ├─ prompt_builder.py           # LangChain Prompt 构建
 │  ├─ memory.py                   # JSON 会话历史
 │  ├─ session_manager.py          # 会话 CRUD 和界面状态
+│  ├─ teaching_state.py           # 按会话持久化的教学状态
+│  ├─ context_manager.py          # Token 预算与分层上下文
+│  ├─ teacher_tools.py            # 检索、出题、批改工具
+│  ├─ teacher_agent.py            # Agent 构建与执行
 │  ├─ rag.py                      # 文档切分、向量化、检索
 │  └─ milvus_probe.py             # Milvus 连接探针
 ├─ prompts/
@@ -90,6 +96,11 @@ DEEPSEEK_MAX_RETRIES=2
 DASHSCOPE_API_KEY=你的DashScope密钥
 DASHSCOPE_EMBEDDING_MODEL=text-embedding-v3
 RAG_SCORE_THRESHOLD=0.0
+AGENT_RECURSION_LIMIT=8
+AGENT_CONTEXT_MAX_TOKENS=12000
+AGENT_CONTEXT_RECENT_MESSAGES=8
+AGENT_SUMMARY_MAX_CHARS=2000
+AGENT_CHARS_PER_TOKEN=1.5
 
 MILVUS_DB_PATH=D:\AI_Teacher_Milvus\ai_teacher_knowledge.db
 MILVUS_COLLECTION=ai_teacher_knowledge
@@ -123,7 +134,7 @@ python -m tests.evaluate_agent_routing
 
 当前基线结果：Recall@1 `97.6%`、Recall@3 `100.0%`、MRR `0.988`、关键词覆盖率 `94.0%`。详细结果见 [RAG 检索评测](evaluation_results/rag_evaluation.md)。
 
-Agent 路由基线为 `9/9 (100%)`；第一次评测为 `6/9 (66.7%)`，收紧工具优先级和必须调用规则后全部通过。详细结果见 [Agent 路由评测](evaluation_results/agent_routing.md)。
+Agent 路由基线为 `12/12 (100%)`，其中包含“再来一道”“难一点”“我的答案是”等状态化请求；第一版评测曾为 `6/9 (66.7%)`，收紧工具优先级和状态规则后全部通过。详细结果见 [Agent 路由评测](evaluation_results/agent_routing.md)。
 
 不调用外部 API 的单元测试：
 
@@ -144,7 +155,8 @@ streamlit run ai_teacher_app.py
 
 - “二次函数的顶点公式是什么？”→ `search_textbook`
 - “给我出一道二次函数基础题，先不要答案。”→ `generate_exercise`
-- “题目是……我的答案是……请批改。”→ `grade_answer`
+- “我的答案是 (1, 0)。”→ 从当前教学状态读取刚才的题目并调用 `grade_answer`
+- “再来一道”“难一点”“给我一个提示。”→ 结合当前知识点和练习状态继续教学
 - “今天学习有点累，鼓励我一下。”→ 直接回答，不调用工具
 
 关闭 Agent 自动模式后，会回到原有经典对话，可手动选择是否启用教材知识库。
@@ -170,10 +182,14 @@ streamlit run ai_teacher_app.py
   → search_textbook / generate_exercise / grade_answer / 直接回答
   → 工具结果返回 Agent
   → 组织最终教师回答
-  → 保存用户消息和最终回答
+  → 保存用户消息、最终回答和结构化教学状态
 ```
 
 工具调用轨迹不会混入用户可见的聊天历史；界面只显示最终回答、使用过的工具名称和真实教材来源。`AGENT_RECURSION_LIMIT` 限制单次 Agent 的最大执行步数，防止异常循环。
+
+每个会话还会保存独立的 `.state.json`：当前知识点、当前练习、隐藏参考答案、最近批改以及较早对话摘要。主 Agent 只能看到当前题目等必要信息，参考答案只交给批改工具，避免出题后提前泄露。旧会话没有状态文件时会自动使用空状态，因此不需要迁移原聊天 JSON。
+
+长对话使用三层上下文：结构化教学状态始终单独保存；最近消息保留原文；超过 `AGENT_CONTEXT_MAX_TOKENS` 后，由模型压缩较早消息。Token 数使用适合中英文混合文本的近似估算；摘要失败时自动回退到有预算上限的最近消息窗口，不阻断本轮回答。
 
 `source`、`file_name`、`subject` 和 `chunk_index` 会随文本块一起保存，因此应用可以知道回答使用了哪些教材资料。
 
@@ -183,7 +199,8 @@ streamlit run ai_teacher_app.py
 
 - 不包含用户登录、权限系统和远程部署。
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
-- 当前练习题及参考答案尚未作为独立教学状态持久化；跨轮“刚才那道题”的可靠关联将在后续教学状态阶段完善。
+- 教学状态仅服务当前会话任务，不做长期学生画像、跨会话能力预测或个性化推荐。
+- Token 预算使用近似估算，并非供应商模型的精确 tokenizer；上线前应按实际模型上下文进一步校准。
 - 当前评测集由项目教材人工构造，不是独立公开基准；关键词覆盖率是字面匹配指标，应与人工检查和后续回答忠实度评测结合使用。
 
 ## 开发检查

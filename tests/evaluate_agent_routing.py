@@ -19,6 +19,7 @@ from core.teacher_tools import (
     GradeAnswerInput,
     SearchTextbookInput,
 )
+from core.teaching_state import ExerciseState, TeachingState
 
 ROUTING_CASES = [
     {"input": "二次函数的顶点坐标公式是什么？", "expected": ["search_textbook"]},
@@ -36,6 +37,9 @@ ROUTING_CASES = [
     {"input": "你好，你是谁？", "expected": []},
     {"input": "今天学习有点累，鼓励我一下。", "expected": []},
     {"input": "帮我制定一个今晚复习数学的简单安排。", "expected": []},
+    {"input": "再来一道。", "expected": ["generate_exercise"]},
+    {"input": "这道太简单了，难一点。", "expected": ["generate_exercise"]},
+    {"input": "我的答案是 (1, 0)。", "expected": ["grade_answer"]},
 ]
 
 
@@ -52,7 +56,7 @@ def create_stub_tools():
         answer = "；答案：合成答案" if include_answer else ""
         return f"合成练习：{topic}，{difficulty}，{question_type}{answer}"
 
-    def grade_answer(question: str, student_answer: str):
+    def grade_answer(student_answer: str, question: str = ""):
         return f"合成批改：题目={question}；学生答案={student_answer}"
 
     return [
@@ -146,6 +150,18 @@ def main() -> None:
         subject="数学",
         gender="女",
         personality="耐心、讲解清晰",
+        teaching_state=TeachingState(
+            subject="数学",
+            current_topic="二次函数",
+            current_exercise=ExerciseState(
+                topic="二次函数",
+                difficulty="基础",
+                question_type="解答题",
+                question="求 y=x²-2x+1 的顶点。",
+                reference_answer="(1, 0)",
+                explanation="配方得到 y=(x-1)²。",
+            ),
+        ),
     )
     report = evaluate_routes(agent, ROUTING_CASES)
     json_path, markdown_path = write_report(report, args.output_dir)

@@ -13,6 +13,7 @@ from core.memory import (
     load_session_meta,
     save_session_meta,
 )
+from core.teaching_state import clear_teaching_state
 
 
 class SessionManager:
@@ -151,6 +152,7 @@ class SessionManager:
         """清空当前会话消息，但保留会话文件和 ID。"""
         if self.current_session:
             get_session_history(self.current_session).clear()
+            clear_teaching_state(self.current_session)
 
     def get_history(self):
         """返回当前会话的 LangChain 历史对象；无当前会话时返回 None。"""
