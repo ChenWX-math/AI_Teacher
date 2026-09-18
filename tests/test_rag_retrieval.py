@@ -1,15 +1,13 @@
-"""RAG 检索精度自动化测试。
+"""RAG 检索离线评测。
 
-对每个科目逐一发起检索请求，检查：
-1. 是否能检索到结果（数量 > 0）
-2. 检索结果是否来自预期的资料文件
-3. 检索内容是否包含预期关键词（人工辅助判断）
+该脚本需要已经构建的 Milvus 集合，并会调用 DashScope Embedding API。
+默认评测全部学科，输出 Recall@1、Recall@K、MRR、关键词覆盖率，
+同时生成 JSON 和 Markdown 报告。
 
 运行：
-    cd AI_Teacher
-    python -m tests.test_rag_retrieval              # 测试所有科目
-    python -m tests.test_rag_retrieval --subject 数学  # 只测数学
-    python -m tests.test_rag_retrieval --interactive     # 逐条交互模式
+    python -m tests.test_rag_retrieval
+    python -m tests.test_rag_retrieval --subject 数学
+    python -m tests.test_rag_retrieval --interactive
 """
 
 from __future__ import annotations
@@ -17,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,194 +26,291 @@ def load_test_questions() -> dict[str, Any]:
     path = Path(__file__).resolve().parent / "test_questions.json"
     if not path.exists():
         raise FileNotFoundError(f"测试问题文件不存在：{path}")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def color(text: str, code: str) -> str:
-    """简单的 ANSI 着色（PowerShell 兼容）。"""
     colors = {"green": "92", "red": "91", "yellow": "93", "blue": "94"}
     return f"\033[{colors.get(code, '0')}m{text}\033[0m"
 
 
 def check_keywords(content: str, keywords: list[str]) -> tuple[int, list[str]]:
     matched, missed = 0, []
-    for kw in keywords:
-        if kw.lower() in content.lower():
+    for keyword in keywords:
+        if keyword.lower() in content.lower():
             matched += 1
         else:
-            missed.append(kw)
+            missed.append(keyword)
     return matched, missed
 
 
-def run_subject_tests(kb: KnowledgeBase, subject: str, questions: list[dict],
-                      k: int = 3) -> dict[str, Any]:
-    results = {"subject": subject, "total": len(questions), "passed": 0, "details": []}
+def find_expected_rank(sources: list[str], expected_files: list[str]) -> int | None:
+    """返回第一个正确来源的 1-based 排名。"""
+    for rank, source in enumerate(sources, 1):
+        if any(expected in source for expected in expected_files):
+            return rank
+    return None
 
-    for i, q in enumerate(questions):
-        question = q["question"]
-        expected_files = q["expected_sources"]
-        keywords = q.get("expected_keywords", [])
+
+def summarize_details(details: list[dict[str, Any]], k: int) -> dict[str, float | int]:
+    total = len(details)
+    if not total:
+        return {
+            "total": 0,
+            "recall_at_1": 0.0,
+            f"recall_at_{k}": 0.0,
+            "mrr": 0.0,
+            "keyword_coverage": 0.0,
+            "errors": 0,
+        }
+
+    hit_at_1 = sum(detail.get("expected_rank") == 1 for detail in details)
+    hit_at_k = sum(detail.get("expected_rank") is not None for detail in details)
+    reciprocal_rank = sum(
+        1 / detail["expected_rank"]
+        for detail in details
+        if detail.get("expected_rank") is not None
+    )
+    keyword_rates = [float(detail.get("keyword_coverage", 0.0)) for detail in details]
+    errors = sum(detail.get("status") == "ERROR" for detail in details)
+    return {
+        "total": total,
+        "recall_at_1": hit_at_1 / total,
+        f"recall_at_{k}": hit_at_k / total,
+        "mrr": reciprocal_rank / total,
+        "keyword_coverage": sum(keyword_rates) / total,
+        "errors": errors,
+    }
+
+
+def run_subject_tests(
+    kb: KnowledgeBase, subject: str, questions: list[dict[str, Any]], k: int = 3
+) -> dict[str, Any]:
+    details = []
+
+    for index, question_data in enumerate(questions, 1):
+        question = question_data["question"]
+        expected_files = question_data["expected_sources"]
+        keywords = question_data.get("expected_keywords", [])
 
         try:
-            docs = kb.search(question, subject=subject, k=k)
+            scored_documents = kb.search_with_scores(question, subject=subject, k=k)
         except Exception as exc:
-            results["details"].append({
-                "index": i + 1, "question": question, "status": "ERROR",
+            details.append({
+                "index": index,
+                "question": question,
+                "status": "ERROR",
                 "error": str(exc),
+                "expected_rank": None,
+                "keyword_coverage": 0.0,
             })
             continue
 
-        if not docs:
-            results["details"].append({
-                "index": i + 1, "question": question, "status": "FAIL",
-                "reason": "未检索到任何结果",
-            })
-            continue
+        documents = [document for document, _score in scored_documents]
+        sources = [str(document.metadata.get("source", "未知")) for document in documents]
+        scores = [round(float(score), 6) for _document, score in scored_documents]
+        expected_rank = find_expected_rank(sources, expected_files)
+        content = "\n".join(document.page_content for document in documents)
+        matched, missed = check_keywords(content, keywords)
+        keyword_coverage = matched / len(keywords) if keywords else 1.0
 
-        sources = [doc.metadata.get("source", "未知") for doc in docs]
-        hit_expected = any(
-            any(expected in src for expected in expected_files) for src in sources
-        )
+        if not documents:
+            status = "FAIL"
+            reason = "未检索到任何结果"
+        elif expected_rank is None:
+            status = "FAIL"
+            reason = "Top-K 中没有预期来源"
+        elif keyword_coverage < 0.5:
+            status = "WEAK"
+            reason = "正确来源已召回，但关键信息覆盖不足 50%"
+        else:
+            status = "PASS"
+            reason = ""
 
-        all_content = "\n".join(doc.page_content for doc in docs)
-        kw_matched, kw_missed = check_keywords(all_content, keywords)
-        status = "PASS" if hit_expected else "WEAK"
-        if hit_expected:
-            results["passed"] += 1
-
-        results["details"].append({
-            "index": i + 1,
+        details.append({
+            "index": index,
             "question": question,
             "status": status,
+            "reason": reason,
+            "expected_sources": expected_files,
             "sources": sources,
-            "hit_expected": hit_expected,
-            "keywords_matched": f"{kw_matched}/{len(keywords)}",
-            "keywords_missed": kw_missed,
+            "scores": scores,
+            "expected_rank": expected_rank,
+            "keywords_matched": matched,
+            "keywords_total": len(keywords),
+            "keywords_missed": missed,
+            "keyword_coverage": round(keyword_coverage, 6),
         })
 
-    return results
+    return {
+        "subject": subject,
+        "k": k,
+        "metrics": summarize_details(details, k),
+        "details": details,
+    }
 
 
 def print_subject_results(results: dict[str, Any]) -> None:
-    subject = results["subject"]
-    total = results["total"]
-    passed = results["passed"]
-    rate = passed / total * 100 if total else 0
-
-    print(f"\n{'=' * 60}")
-    print(f"  📚 科目：{subject}  |  通过率：{passed}/{total} ({rate:.0f}%)")
-    print(f"{'=' * 60}")
+    metrics = results["metrics"]
+    k = results["k"]
+    recall_k = metrics[f"recall_at_{k}"]
+    print(f"\n{'=' * 72}")
+    print(
+        f"  📚 {results['subject']} | n={metrics['total']} | "
+        f"R@1={metrics['recall_at_1']:.1%} | R@{k}={recall_k:.1%} | "
+        f"MRR={metrics['mrr']:.3f} | 关键词={metrics['keyword_coverage']:.1%}"
+    )
+    print(f"{'=' * 72}")
 
     for detail in results["details"]:
-        idx = detail["index"]
-        q = detail["question"]
         status = detail["status"]
-
-        icon = {"PASS": color("✓", "green"),
-                "WEAK": color("△", "yellow"),
-                "FAIL": color("✗", "red"),
-                "ERROR": color("!", "red")}.get(status, "?")
-
-        print(f"\n  [{idx}] {icon} {q}")
-
+        icon = {
+            "PASS": color("✓", "green"),
+            "WEAK": color("△", "yellow"),
+            "FAIL": color("✗", "red"),
+            "ERROR": color("!", "red"),
+        }.get(status, "?")
+        print(f"\n  [{detail['index']}] {icon} {detail['question']}")
         if status == "ERROR":
-            print(f"      ❌ 错误：{detail['error']}")
+            print(f"      错误：{detail['error']}")
             continue
-        if status == "FAIL":
-            print(f"      ❌ {detail['reason']}")
-            continue
+        print(
+            f"      正确来源排名：{detail['expected_rank'] or '未命中'} | "
+            f"关键词：{detail['keywords_matched']}/{detail['keywords_total']}"
+        )
+        for source, score in zip(detail["sources"], detail["scores"], strict=True):
+            print(f"      {score:.3f}  {source}")
+        if detail["reason"]:
+            print(f"      说明：{detail['reason']}")
 
-        sources = detail["sources"]
-        for s in sources:
-            hit = "✓" if detail["hit_expected"] else "?"
-            print(f"      来源 {hit}：{s}")
 
-        kw_info = detail["keywords_matched"]
-        if detail.get("keywords_missed"):
-            missed = ", ".join(detail["keywords_missed"])
-            print(f"      关键词 {kw_info} | 未命中：{missed}")
-        else:
-            print(f"      关键词 {kw_info}（全部命中）")
+def combine_results(subject_results: list[dict[str, Any]], k: int) -> dict[str, Any]:
+    all_details = [
+        detail
+        for result in subject_results
+        for detail in result["details"]
+    ]
+    return {
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "k": k,
+        "metrics": summarize_details(all_details, k),
+        "subjects": subject_results,
+    }
+
+
+def render_markdown_report(report: dict[str, Any]) -> str:
+    metrics = report["metrics"]
+    k = report["k"]
+    lines = [
+        "# AI 智能教师 RAG 检索评测",
+        "",
+        f"生成时间：{report['generated_at']}",
+        "",
+        "## 总体指标",
+        "",
+        f"| 样本数 | Recall@1 | Recall@{k} | MRR | 关键词覆盖率 | 错误数 |",
+        "|---:|---:|---:|---:|---:|---:|",
+        (
+            f"| {metrics['total']} | {metrics['recall_at_1']:.1%} | "
+            f"{metrics[f'recall_at_{k}']:.1%} | {metrics['mrr']:.3f} | "
+            f"{metrics['keyword_coverage']:.1%} | {metrics['errors']} |"
+        ),
+        "",
+        "## 分学科指标",
+        "",
+        f"| 学科 | 样本数 | Recall@1 | Recall@{k} | MRR | 关键词覆盖率 |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for result in report["subjects"]:
+        subject_metrics = result["metrics"]
+        lines.append(
+            f"| {result['subject']} | {subject_metrics['total']} | "
+            f"{subject_metrics['recall_at_1']:.1%} | "
+            f"{subject_metrics[f'recall_at_{k}']:.1%} | "
+            f"{subject_metrics['mrr']:.3f} | "
+            f"{subject_metrics['keyword_coverage']:.1%} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def write_reports(report: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "rag_evaluation.json"
+    markdown_path = output_dir / "rag_evaluation.md"
+    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    markdown_path.write_text(render_markdown_report(report), encoding="utf-8")
+    return json_path, markdown_path
 
 
 def run_interactive_mode(kb: KnowledgeBase, questions_data: dict[str, Any]) -> None:
     print("\n📋 交互测试模式：逐条输入问题，实时查看检索结果。\n")
     subjects = list(questions_data["subjects"].keys())
     print(f"可用科目：{', '.join(subjects)}")
-
-    subject = input("\n请输入科目：").strip()
-    if subject not in subjects:
-        print(f"科目 '{subject}' 不在测试集中，将不限制科目。")
-        subject = None
-
-    k_str = input("检索条数 (默认 3)：").strip()
-    k = int(k_str) if k_str else 3
+    subject_input = input("\n请输入科目：").strip()
+    subject = subject_input if subject_input in subjects else None
+    k_input = input("检索条数 (默认 3)：").strip()
+    k = int(k_input) if k_input else 3
 
     while True:
-        q = input("\n问题（输入 q 退出）：").strip()
-        if q.lower() == "q":
+        question = input("\n问题（输入 q 退出）：").strip()
+        if question.lower() == "q":
             break
-        if not q:
+        if not question:
             continue
-        try:
-            docs = kb.search(q, subject=subject, k=k)
-            print(f"\n检索到 {len(docs)} 条：")
-            print(kb.format_context(docs))
-        except Exception as exc:
-            print(f"❌ 错误：{exc}")
+        results = kb.search_with_scores(question, subject=subject, k=k)
+        for source in kb.source_records(results):
+            print(f"{source['score']:.3f} | {source['source']} | {source['preview']}")
 
 
 def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    parser = argparse.ArgumentParser(description="RAG 检索精度测试")
-    parser.add_argument("--subject", help="指定科目，不指定则测试所有科目")
-    parser.add_argument("--interactive", action="store_true", help="交互模式：手动输入问题")
-    parser.add_argument("-k", type=int, default=3, help="每条查询返回的结果数（默认 3）")
+    parser = argparse.ArgumentParser(description="AI 智能教师 RAG 检索评测")
+    parser.add_argument("--subject", help="只评测指定科目")
+    parser.add_argument("--interactive", action="store_true", help="交互检索模式")
+    parser.add_argument("-k", type=int, default=3, help="每条查询返回结果数")
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("evaluation_results"), help="报告输出目录"
+    )
+    parser.add_argument(
+        "--min-recall", type=float, default=0.8, help="Recall@K 最低通过阈值"
+    )
     args = parser.parse_args()
 
     questions_data = load_test_questions()
-    all_subjects = list(questions_data["subjects"].keys())
-
     print("⏳ 正在加载知识库...")
     try:
         kb = KnowledgeBase().load()
     except Exception as exc:
         print(f"\n❌ 知识库加载失败：{exc}")
         print("   请先运行 python -m core.rag --build 构建知识库。")
-        sys.exit(1)
-
-    print("✅ 知识库加载完成。\n")
+        raise SystemExit(1) from exc
 
     if args.interactive:
         run_interactive_mode(kb, questions_data)
         return
 
-    subjects_to_test = [args.subject] if args.subject else all_subjects
-
-    overall = {"total": 0, "passed": 0}
-    for subject in subjects_to_test:
+    subjects = [args.subject] if args.subject else list(questions_data["subjects"])
+    results = []
+    for subject in subjects:
         questions = questions_data["subjects"].get(subject)
         if not questions:
-            print(f"⚠️  科目 '{subject}' 没有测试问题，跳过。")
-            continue
-        results = run_subject_tests(kb, subject, questions, k=args.k)
-        print_subject_results(results)
-        overall["total"] += results["total"]
-        overall["passed"] += results["passed"]
+            parser.error(f"科目 {subject!r} 不在评测集中")
+        subject_result = run_subject_tests(kb, subject, questions, k=args.k)
+        print_subject_results(subject_result)
+        results.append(subject_result)
 
-    print(f"\n{'=' * 60}")
-    rate = overall["passed"] / overall["total"] * 100 if overall["total"] else 0
-    print(f"  🏁 总计：{overall['passed']}/{overall['total']} 通过（{rate:.0f}%）")
-    print(f"{'=' * 60}")
+    report = combine_results(results, args.k)
+    json_path, markdown_path = write_reports(report, args.output_dir)
+    metrics = report["metrics"]
+    recall_k = metrics[f"recall_at_{args.k}"]
+    print(f"\n总计：R@1={metrics['recall_at_1']:.1%}，R@{args.k}={recall_k:.1%}，")
+    print(f"MRR={metrics['mrr']:.3f}，关键词覆盖率={metrics['keyword_coverage']:.1%}")
+    print(f"报告：{json_path} / {markdown_path}")
 
-    if rate < 60:
-        print("\n  ⚠️  通过率偏低，建议：")
-        print("     1. 检查知识库是否已构建（python -m core.rag --build）")
-        print("     2. 调整 chunk_size/chunk_overlap 参数")
-        print("     3. 检查资料文件的编码是否为 UTF-8")
+    if metrics["errors"] or recall_k < args.min_recall:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

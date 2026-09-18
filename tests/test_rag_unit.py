@@ -70,3 +70,51 @@ def test_incremental_subject_build_replaces_old_subject_chunks(monkeypatch, tmp_
         ("delete", 'subject == "数学"'),
         ("add", [document]),
     ]
+
+
+def test_search_with_scores_uses_subject_and_threshold(tmp_path):
+    document = Document(
+        page_content="二次函数顶点公式",
+        metadata={"source": "数学/函数.txt", "chunk_index": 2},
+    )
+
+    class FakeVectorStore:
+        def similarity_search_with_relevance_scores(self, query, **kwargs):
+            assert query == "顶点怎么求"
+            assert kwargs == {
+                "k": 3,
+                "expr": 'subject == "数学"',
+                "score_threshold": 0.4,
+            }
+            return [(document, 0.92)]
+
+    kb = KnowledgeBase(data_dir=tmp_path, score_threshold=0.4)
+    kb.vector_store = FakeVectorStore()
+
+    results = kb.search_with_scores("顶点怎么求", subject="数学", k=3)
+
+    assert results == [(document, 0.92)]
+    assert kb.search("顶点怎么求", subject="数学", k=3) == [document]
+
+
+def test_source_records_are_safe_and_compact():
+    document = Document(
+        page_content="第一行\n第二行很长的内容",
+        metadata={"source": "数学/函数.txt", "chunk_index": 1},
+    )
+
+    records = KnowledgeBase.source_records([(document, 0.876)], preview_length=8)
+
+    assert records == [{
+        "label": "资料 1",
+        "source": "数学/函数.txt",
+        "chunk_index": 1,
+        "score": 0.876,
+        "preview": "第一行 第二行很…",
+    }]
+
+
+@pytest.mark.parametrize("threshold", [-0.1, 1.1])
+def test_invalid_score_threshold_is_rejected(tmp_path, threshold):
+    with pytest.raises(ValueError, match="score_threshold"):
+        KnowledgeBase(data_dir=tmp_path, score_threshold=threshold)

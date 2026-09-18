@@ -128,9 +128,13 @@ if user_prompt:
         placeholder, full_response = st.empty(), ""
         try:
             context = ""
+            retrieved_with_scores = []
             if use_knowledge:
                 knowledge_base = get_knowledge_base()
-                retrieved = knowledge_base.search(user_prompt, subject=subject, k=top_k)
+                retrieved_with_scores = knowledge_base.search_with_scores(
+                    user_prompt, subject=subject, k=top_k
+                )
+                retrieved = [document for document, _score in retrieved_with_scores]
                 context = knowledge_base.format_context(retrieved)
                 if not context:
                     st.info("知识库没有找到相关片段，将使用普通对话回答。")
@@ -144,6 +148,15 @@ if user_prompt:
                     placeholder.markdown(full_response)
             if not full_response:
                 st.warning("模型没有返回文本内容，本次消息未写入历史。")
+            if retrieved_with_scores:
+                source_records = knowledge_base.source_records(retrieved_with_scores)
+                with st.expander(f"📚 参考教材（{len(source_records)} 条）"):
+                    for source in source_records:
+                        st.markdown(
+                            f"**{source['label']} · {source['source']} · "
+                            f"片段 {source['chunk_index']} · 相关度 {source['score']:.1%}**"
+                        )
+                        st.text(source["preview"])
         except (EnvironmentError, ValueError) as exc:
             st.error(str(exc))
         except Exception as exc:

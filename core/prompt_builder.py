@@ -44,7 +44,9 @@ def build_chat_prompt(subject, gender, personality, use_context=False):
     if use_context:
         messages.append((
             "system",
-            "以下是从教材知识库检索到的参考资料。请优先依据资料回答；如果资料不足，明确说明，不要编造。\n\n{context}",
+            "以下是从教材知识库检索到的参考资料。请优先依据资料回答；"
+            "引用具体知识时使用对应的 [资料 N] 标记。"
+            "如果资料不足，请明确说明，不要编造内容或来源。\n\n{context}",
         ))
     messages.extend([
         MessagesPlaceholder(variable_name="history"), # type: ignore

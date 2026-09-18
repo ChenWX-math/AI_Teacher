@@ -10,6 +10,8 @@
 - 本地向量库：使用 Milvus Lite 保存向量和元数据，不需要部署远程 Milvus 服务。
 - 流式回答：通过 LangChain chain 流式输出 DeepSeek 回复。
 - 可选知识库：关闭时是普通对话，开启后按当前科目检索教材片段并注入 Prompt。
+- 可解释检索：回答下方展示教材来源、片段编号、内容预览和归一化相关度。
+- 检索评测：覆盖 9 个学科，输出 Recall@K、MRR 和关键词覆盖率报告。
 
 ## 技术栈
 
@@ -85,6 +87,7 @@ DEEPSEEK_TIMEOUT_SECONDS=60
 DEEPSEEK_MAX_RETRIES=2
 DASHSCOPE_API_KEY=你的DashScope密钥
 DASHSCOPE_EMBEDDING_MODEL=text-embedding-v3
+RAG_SCORE_THRESHOLD=0.0
 
 MILVUS_DB_PATH=D:\AI_Teacher_Milvus\ai_teacher_knowledge.db
 MILVUS_COLLECTION=ai_teacher_knowledge
@@ -113,7 +116,9 @@ python -m core.rag --query "牛顿第二定律如何使用" --subject 物理
 python -m tests.test_rag_retrieval
 ```
 
-检索测试会检查是否返回结果、来源是否属于预期教材文件，并统计每个学科的通过情况。Embedding 查询会产生 DashScope API 调用。
+检索评测覆盖 9 个学科、42 道问题，会统计 Recall@1、Recall@3、MRR 和关键词覆盖率，并在 `evaluation_results/` 下生成 JSON 与 Markdown 报告。Embedding 查询会产生 DashScope API 调用。
+
+当前基线结果：Recall@1 `97.6%`、Recall@3 `100.0%`、MRR `0.988`、关键词覆盖率 `94.0%`。详细结果见 [RAG 检索评测](evaluation_results/rag_evaluation.md)。
 
 不调用外部 API 的单元测试：
 
@@ -147,11 +152,14 @@ streamlit run ai_teacher_app.py
 
 `source`、`file_name`、`subject` 和 `chunk_index` 会随文本块一起保存，因此应用可以知道回答使用了哪些教材资料。
 
+检索相关度统一映射到 `0～1`，数值越大代表越相关。可通过 `RAG_SCORE_THRESHOLD` 过滤低相关片段；默认 `0.0` 表示先保留结果并通过评测观察分数分布，再按实际数据选择阈值，避免凭经验误删有效资料。
+
 ## 当前边界
 
 - 不包含用户登录、权限系统和远程部署。
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
 - 当前 Agent 和联网工具不是核心依赖。项目优先保证确定性的教材检索和教学回答流程。
+- 当前评测集由项目教材人工构造，不是独立公开基准；关键词覆盖率是字面匹配指标，应与人工检查和后续回答忠实度评测结合使用。
 
 ## 开发检查
 

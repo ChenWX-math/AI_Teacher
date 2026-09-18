@@ -15,11 +15,16 @@ from langchain_milvus import Milvus
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pymilvus import connections
 
-from core.config import PROJECT_ROOT, get_milvus_uri, get_optional
+from core.config import PROJECT_ROOT, get_milvus_uri, get_optional, get_optional_float
 from core.embeddings import get_embeddings
 
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 DEFAULT_COLLECTION = "ai_teacher_knowledge"
+DEFAULT_INDEX_PARAMS = {
+    "metric_type": "L2",
+    "index_type": "AUTOINDEX",
+    "params": {},
+}
 
 
 def resolve_milvus_uri(uri: str) -> str:
@@ -66,10 +71,23 @@ class CompatibleMilvus(Milvus):
 class KnowledgeBase:
     """所有科目的教材知识库。"""
 
-    def __init__(self, data_dir=DEFAULT_DATA_DIR, chunk_size=800, chunk_overlap=120):
+    def __init__(
+        self,
+        data_dir=DEFAULT_DATA_DIR,
+        chunk_size=800,
+        chunk_overlap=120,
+        score_threshold: float | None = None,
+    ):
         if chunk_size <= 0 or not 0 <= chunk_overlap < chunk_size:
             raise ValueError("chunk_size 必须大于 0，chunk_overlap 必须小于 chunk_size")
+        if score_threshold is None:
+            score_threshold = get_optional_float(
+                "RAG_SCORE_THRESHOLD", 0.0, minimum=0.0, maximum=1.0
+            )
+        if not 0.0 <= score_threshold <= 1.0:
+            raise ValueError("score_threshold 必须在 0 到 1 之间")
         self.data_dir = Path(data_dir)
+        self.score_threshold = score_threshold
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", "。", "；", "，", " ", ""],
@@ -124,6 +142,7 @@ class KnowledgeBase:
             documents=documents, embedding=get_embeddings(),
             collection_name=self.collection_name,
             connection_args=milvus_connection_args(),
+            index_params=DEFAULT_INDEX_PARAMS,
             drop_old=drop_old, auto_id=True,
         )
         return self
@@ -135,18 +154,38 @@ class KnowledgeBase:
             embedding_function=get_embeddings(),
             collection_name=self.collection_name,
             connection_args=milvus_connection_args(),
+            index_params=DEFAULT_INDEX_PARAMS,
         )
         return self
 
     def search(self, query: str, subject: str | None = None, k: int = 4) -> list[Document]:
+        """兼容原有调用方式，只返回文档。"""
+        return [document for document, _score in self.search_with_scores(query, subject, k)]
+
+    def search_with_scores(
+        self,
+        query: str,
+        subject: str | None = None,
+        k: int = 4,
+        score_threshold: float | None = None,
+    ) -> list[tuple[Document, float]]:
+        """返回文档及归一化相关度分数，分数范围为 0～1，越大越相关。"""
         if self.vector_store is None:
             raise RuntimeError("知识库尚未加载，请先调用 build() 或 load()")
         if not query or not query.strip():
             raise ValueError("query 不能为空")
         if k <= 0:
             raise ValueError("k 必须大于 0")
+        threshold = self.score_threshold if score_threshold is None else score_threshold
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("score_threshold 必须在 0 到 1 之间")
         expr = self._subject_filter(subject) if subject else None
-        return self.vector_store.similarity_search(query, k=k, expr=expr)
+        return self.vector_store.similarity_search_with_relevance_scores(
+            query,
+            k=k,
+            expr=expr,
+            score_threshold=threshold,
+        )
 
     @staticmethod
     def _subject_filter(subject: str) -> str:
@@ -160,6 +199,26 @@ class KnowledgeBase:
             f"[资料 {index} | 来源：{doc.metadata.get('source', '未知')}]\n{doc.page_content}"
             for index, doc in enumerate(documents, 1)
         )
+
+    @staticmethod
+    def source_records(
+        results: list[tuple[Document, float]], preview_length: int = 180
+    ) -> list[dict[str, object]]:
+        """把检索结果转换为适合 UI 和日志展示的来源记录。"""
+        records = []
+        for index, (document, score) in enumerate(results, 1):
+            content = " ".join(document.page_content.split())
+            preview = content[:preview_length]
+            if len(content) > preview_length:
+                preview += "…"
+            records.append({
+                "label": f"资料 {index}",
+                "source": document.metadata.get("source", "未知"),
+                "chunk_index": document.metadata.get("chunk_index", "未知"),
+                "score": float(score),
+                "preview": preview,
+            })
+        return records
 
 
 def build_knowledge_base(data_dir=DEFAULT_DATA_DIR, subject: str | None = None):
@@ -182,8 +241,13 @@ def main() -> None:
     if args.query:
         if kb.vector_store is None:
             kb.load()
-        results = kb.search(" ".join(args.query), subject=args.subject, k=args.k)
-        print(f"检索到 {len(results)} 条结果\n{kb.format_context(results)}")
+        scored_results = kb.search_with_scores(" ".join(args.query), subject=args.subject, k=args.k)
+        print(f"检索到 {len(scored_results)} 条结果")
+        for source in kb.source_records(scored_results, preview_length=500):
+            print(
+                f"\n[{source['label']} | 相关度：{source['score']:.3f} | "
+                f"来源：{source['source']}]\n{source['preview']}"
+            )
     if not args.build and not args.query:
         parser.error("请提供 --build 或 --query")
 
