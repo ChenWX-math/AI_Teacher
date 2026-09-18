@@ -1,8 +1,24 @@
 {
-  "generated_at": "2026-09-18T13:10:21+08:00",
-  "total": 12,
-  "passed": 12,
+  "generated_at": "2026-09-18T13:35:26+08:00",
+  "total": 36,
+  "passed": 36,
   "accuracy": 1.0,
+  "metrics": {
+    "tool_selection_accuracy": 1.0,
+    "parameter_validity_rate": 1.0,
+    "task_completion_rate": 1.0,
+    "citation_correctness": 0.9,
+    "answer_faithfulness_proxy": 0.9722222222222222,
+    "average_latency_ms": 3410,
+    "p95_latency_ms": 5086,
+    "input_tokens": 90448,
+    "output_tokens": 11006,
+    "estimated_cost": null,
+    "cost_rates_per_million": {
+      "input": 0.0,
+      "output": 0.0
+    }
+  },
   "details": [
     {
       "input": "二次函数的顶点坐标公式是什么？",
@@ -12,7 +28,15 @@
       "actual": [
         "search_textbook"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4530,
+      "input_tokens": 2962,
+      "output_tokens": 382
     },
     {
       "input": "等差数列的通项公式怎么写？",
@@ -22,7 +46,15 @@
       "actual": [
         "search_textbook"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3705,
+      "input_tokens": 2958,
+      "output_tokens": 453
     },
     {
       "input": "请根据二次函数给我出一道基础题，先不要答案。",
@@ -32,7 +64,15 @@
       "actual": [
         "generate_exercise"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2772,
+      "input_tokens": 3019,
+      "output_tokens": 225
     },
     {
       "input": "给我来一道稍难的函数选择题，并附答案。",
@@ -42,7 +82,15 @@
       "actual": [
         "generate_exercise"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3690,
+      "input_tokens": 3020,
+      "output_tokens": 389
     },
     {
       "input": "题目：求 y=x²-2x+1 的顶点。我的答案是 (1,0)，请批改。",
@@ -52,7 +100,15 @@
       "actual": [
         "grade_answer"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3665,
+      "input_tokens": 2998,
+      "output_tokens": 287
     },
     {
       "input": "题目：2x+1=5。我的解答是 x=3，帮我看看哪里错了。",
@@ -62,25 +118,57 @@
       "actual": [
         "grade_answer"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4167,
+      "input_tokens": 2986,
+      "output_tokens": 390
     },
     {
       "input": "你好，你是谁？",
       "expected": [],
       "actual": [],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 1810,
+      "input_tokens": 1444,
+      "output_tokens": 137
     },
     {
       "input": "今天学习有点累，鼓励我一下。",
       "expected": [],
       "actual": [],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2267,
+      "input_tokens": 1449,
+      "output_tokens": 167
     },
     {
       "input": "帮我制定一个今晚复习数学的简单安排。",
       "expected": [],
       "actual": [],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3274,
+      "input_tokens": 1450,
+      "output_tokens": 322
     },
     {
       "input": "再来一道。",
@@ -90,7 +178,15 @@
       "actual": [
         "generate_exercise"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3557,
+      "input_tokens": 2982,
+      "output_tokens": 228
     },
     {
       "input": "这道太简单了，难一点。",
@@ -100,7 +196,15 @@
       "actual": [
         "generate_exercise"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3068,
+      "input_tokens": 3013,
+      "output_tokens": 314
     },
     {
       "input": "我的答案是 (1, 0)。",
@@ -110,7 +214,415 @@
       "actual": [
         "grade_answer"
       ],
-      "passed": true
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3904,
+      "input_tokens": 2964,
+      "output_tokens": 360
+    },
+    {
+      "input": "勾股定理的内容和适用条件是什么？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4693,
+      "input_tokens": 2970,
+      "output_tokens": 388
+    },
+    {
+      "input": "正弦定理什么时候使用？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 5086,
+      "input_tokens": 2964,
+      "output_tokens": 445
+    },
+    {
+      "input": "导数在几何上表示什么？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4662,
+      "input_tokens": 2966,
+      "output_tokens": 500
+    },
+    {
+      "input": "古典概型的概率公式是什么？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3449,
+      "input_tokens": 2962,
+      "output_tokens": 294
+    },
+    {
+      "input": "椭圆的焦点和离心率怎样定义？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4128,
+      "input_tokens": 2970,
+      "output_tokens": 430
+    },
+    {
+      "input": "等比数列前 n 项和公式怎么推导？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4514,
+      "input_tokens": 2986,
+      "output_tokens": 528
+    },
+    {
+      "input": "三角函数的最小正周期怎么求？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": false,
+      "answer_faithfulness_proxy": false,
+      "duration_ms": 5435,
+      "input_tokens": 2964,
+      "output_tokens": 492
+    },
+    {
+      "input": "排列与组合有什么区别？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4441,
+      "input_tokens": 2972,
+      "output_tokens": 511
+    },
+    {
+      "input": "出一道概率填空题。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2775,
+      "input_tokens": 2980,
+      "output_tokens": 200
+    },
+    {
+      "input": "用数列知识测试我一下，不要答案。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3716,
+      "input_tokens": 3031,
+      "output_tokens": 304
+    },
+    {
+      "input": "把刚才的题换成选择题。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3379,
+      "input_tokens": 2988,
+      "output_tokens": 264
+    },
+    {
+      "input": "给我一道中等难度的三角函数练习。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3495,
+      "input_tokens": 2990,
+      "output_tokens": 388
+    },
+    {
+      "input": "题目：3x-4=8。我的答案是 x=4。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4142,
+      "input_tokens": 2974,
+      "output_tokens": 338
+    },
+    {
+      "input": "我算出来是 x=2，帮我批改。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 4551,
+      "input_tokens": 2968,
+      "output_tokens": 375
+    },
+    {
+      "input": "刚才那题我不会，我的过程是先配方。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3253,
+      "input_tokens": 2963,
+      "output_tokens": 251
+    },
+    {
+      "input": "题目：sin 30° 等于多少？我写的是 1/2。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 3419,
+      "input_tokens": 2981,
+      "output_tokens": 203
+    },
+    {
+      "input": "我的解题过程写完了，请给分。",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 1685,
+      "input_tokens": 1450,
+      "output_tokens": 80
+    },
+    {
+      "input": "谢谢老师。",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2163,
+      "input_tokens": 1443,
+      "output_tokens": 202
+    },
+    {
+      "input": "你能做什么？",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2504,
+      "input_tokens": 1443,
+      "output_tokens": 237
+    },
+    {
+      "input": "我总是粗心，安慰我一下。",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2663,
+      "input_tokens": 1448,
+      "output_tokens": 258
+    },
+    {
+      "input": "帮我安排一个 25 分钟的番茄钟。",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2180,
+      "input_tokens": 1450,
+      "output_tokens": 189
+    },
+    {
+      "input": "学了很久，我应该休息多久？",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2350,
+      "input_tokens": 1447,
+      "output_tokens": 227
+    },
+    {
+      "input": "我今天应该先复习哪一科？",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 2304,
+      "input_tokens": 1448,
+      "output_tokens": 201
+    },
+    {
+      "input": "再见，明天继续。",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "arguments_valid": true,
+      "task_completed": true,
+      "citation_valid": true,
+      "citation_present": true,
+      "answer_faithfulness_proxy": true,
+      "duration_ms": 1371,
+      "input_tokens": 1445,
+      "output_tokens": 47
     }
   ]
 }

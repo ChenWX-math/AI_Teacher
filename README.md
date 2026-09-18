@@ -1,5 +1,7 @@
 # AI 智能教师
 
+[![CI](https://github.com/ChenWX-math/AI_Teacher/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenWX-math/AI_Teacher/actions/workflows/ci.yml)
+
 一个面向高中生的个人 AI 教师项目。项目使用 Streamlit 提供交互界面，使用 LangChain Agent 根据学生意图自动选择教材检索、练习生成或答案批改工具，并使用 DashScope Embedding + Milvus Lite 构建多学科教材知识库。
 
 ## 项目亮点
@@ -16,6 +18,26 @@
 - Agent 评测：使用真实模型和合成工具测试工具选择，不向模型发送本地教材。
 - 教学闭环：按会话保存当前知识点、练习题和最近批改结果，支持省略式多轮指令。
 - 分层记忆：较早对话摘要 + 最近原文 + 结构化教学状态，并提供摘要失败回退。
+- 工程化验证：免费 CI、真实模型离线评测、脱敏 JSONL 日志和失败案例回归。
+
+## 系统架构
+
+```mermaid
+flowchart LR
+    U[学生 / Streamlit] --> A{Teacher Agent}
+    A -->|知识问答| R[search_textbook]
+    A -->|出题| E[generate_exercise]
+    A -->|提交答案| G[grade_answer]
+    A -->|普通交流| L[DeepSeek]
+    R --> M[(Milvus Lite)]
+    M --> D[9 学科教材]
+    E --> S[(教学状态 JSON)]
+    G --> S
+    H[(聊天历史 JSON)] --> C[分层上下文]
+    S --> C
+    C --> A
+    A --> O[脱敏 JSONL 日志]
+```
 
 ## 技术栈
 
@@ -24,7 +46,7 @@
 | Web 界面   | Streamlit                             |
 | LLM        | DeepSeek OpenAI-compatible API        |
 | LLM 编排   | LangChain 1.x / LCEL                  |
-| Embedding  | DashScope`text-embedding-v3`        |
+| Embedding  | DashScope `text-embedding-v3`       |
 | 向量数据库 | Milvus Lite / PyMilvus                |
 | 会话记忆   | JSON 历史 + 结构化教学状态 + 分层摘要 |
 | 配置管理   | `python-dotenv`                     |
@@ -45,6 +67,7 @@ AI_Teacher/
 │  ├─ context_manager.py          # Token 预算与分层上下文
 │  ├─ teacher_tools.py            # 检索、出题、批改工具
 │  ├─ teacher_agent.py            # Agent 构建与执行
+│  ├─ observability.py            # 脱敏 JSONL 事件日志
 │  ├─ rag.py                      # 文档切分、向量化、检索
 │  └─ milvus_probe.py             # Milvus 连接探针
 ├─ prompts/
@@ -54,6 +77,8 @@ AI_Teacher/
 ├─ tests/
 │  ├─ test_questions.json         # RAG 测试问题集
 │  └─ test_rag_retrieval.py       # 检索测试脚本
+├─ docs/                           # 失败案例、简历与面试材料
+├─ .github/workflows/ci.yml        # 免费静态检查与单元测试
 ├─ .env.example
 ├─ requirements-dev.txt           # 测试与代码检查依赖
 ├─ pyproject.toml                 # pytest / Ruff 配置
@@ -101,6 +126,8 @@ AGENT_CONTEXT_MAX_TOKENS=12000
 AGENT_CONTEXT_RECENT_MESSAGES=8
 AGENT_SUMMARY_MAX_CHARS=2000
 AGENT_CHARS_PER_TOKEN=1.5
+APP_LOG_PATH=logs/events.jsonl
+APP_LOG_USER_CONTENT=false
 
 MILVUS_DB_PATH=D:\AI_Teacher_Milvus\ai_teacher_knowledge.db
 MILVUS_COLLECTION=ai_teacher_knowledge
@@ -134,7 +161,17 @@ python -m tests.evaluate_agent_routing
 
 当前基线结果：Recall@1 `97.6%`、Recall@3 `100.0%`、MRR `0.988`、关键词覆盖率 `94.0%`。详细结果见 [RAG 检索评测](evaluation_results/rag_evaluation.md)。
 
-Agent 路由基线为 `12/12 (100%)`，其中包含“再来一道”“难一点”“我的答案是”等状态化请求；第一版评测曾为 `6/9 (66.7%)`，收紧工具优先级和状态规则后全部通过。详细结果见 [Agent 路由评测](evaluation_results/agent_routing.md)。
+Agent 评测扩展为 36 条，覆盖教材检索、出题、批改、直接回答与状态化指令，并记录工具选择、参数有效性、任务完成、引用约束、平均/P95 延迟和 Token。最新实测结果见 [Agent 评测报告](evaluation_results/agent_routing.md)。
+
+| 评测维度 | 最新结果 |
+|---|---:|
+| RAG Recall@1 / Recall@3 | 97.6% / 100.0% |
+| RAG MRR / 关键词覆盖率 | 0.988 / 94.0% |
+| Agent 工具选择准确率 | 100.0%（36/36） |
+| Agent 参数有效率 / 任务完成率 | 100.0% / 100.0% |
+| 合成引用正确率 / 忠实度轨迹代理 | 90.0% / 97.2% |
+| Agent 平均延迟 / P95 | 3.41s / 5.09s |
+| 本轮输入 / 输出 Token | 90,448 / 11,006 |
 
 不调用外部 API 的单元测试：
 
@@ -143,7 +180,17 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-单元测试使用临时目录和纯本地逻辑，不会产生模型费用。`tests.test_rag_retrieval` 属于需要已构建向量库和 DashScope API 的集成评测，应按需单独运行。
+单元测试使用临时目录和纯本地逻辑，不会产生模型费用。GitHub Actions 在每次 push/PR 时执行 Ruff、非 integration 测试与编译检查。
+
+真实 API 测试必须显式开启：
+
+```powershell
+$env:RUN_INTEGRATION_TESTS="1"
+python -m pytest -m integration -q
+Remove-Item Env:RUN_INTEGRATION_TESTS
+```
+
+`tests.test_rag_retrieval` 和 `tests.evaluate_agent_routing` 也会调用外部 API，应按需单独运行。若要估算模型费用，可设置 `EVAL_INPUT_COST_PER_MILLION` 和 `EVAL_OUTPUT_COST_PER_MILLION`；单价不写死在代码中，避免供应商调价后产生错误数据。
 
 ## 启动应用
 
@@ -187,9 +234,27 @@ streamlit run ai_teacher_app.py
 
 工具调用轨迹不会混入用户可见的聊天历史；界面只显示最终回答、使用过的工具名称和真实教材来源。`AGENT_RECURSION_LIMIT` 限制单次 Agent 的最大执行步数，防止异常循环。
 
+一次典型执行轨迹：
+
+```text
+“我的答案是 (1, 0)”
+  → Agent 读取当前题目（看不到隐藏参考答案）
+  → grade_answer 从结构化状态取题目和参考答案
+  → 返回得分、错误原因、提示、参考解法、下一步建议
+  → 只把学生原消息和最终回答写入聊天历史
+```
+
 每个会话还会保存独立的 `.state.json`：当前知识点、当前练习、隐藏参考答案、最近批改以及较早对话摘要。主 Agent 只能看到当前题目等必要信息，参考答案只交给批改工具，避免出题后提前泄露。旧会话没有状态文件时会自动使用空状态，因此不需要迁移原聊天 JSON。
 
 长对话使用三层上下文：结构化教学状态始终单独保存；最近消息保留原文；超过 `AGENT_CONTEXT_MAX_TOKENS` 后，由模型压缩较早消息。Token 数使用适合中英文混合文本的近似估算；摘要失败时自动回退到有预算上限的最近消息窗口，不阻断本轮回答。
+
+## 可观测性与隐私
+
+Agent 每次运行会在 `logs/events.jsonl` 写入开始、完成或失败事件，包括 `request_id`、会话 ID、工具名、耗时、来源数量和上下文状态。API Key 始终脱敏；学生自由输入默认只记录字符数和 SHA-256 短指纹，不记录原文。只有显式设置 `APP_LOG_USER_CONTENT=true` 才会保存内容，使用真实学生数据时不建议开启。
+
+LangSmith 是可选能力：设置 `LANGSMITH_TRACING=true` 和 Key 后可使用 LangChain Trace；不配置不会影响本地日志或应用运行。
+
+历史失败与修复见 [失败案例](docs/failure_cases.md)，简历描述、讲解稿和面试追问见 [面试指南](docs/interview_guide.md)。
 
 `source`、`file_name`、`subject` 和 `chunk_index` 会随文本块一起保存，因此应用可以知道回答使用了哪些教材资料。
 
@@ -201,6 +266,8 @@ streamlit run ai_teacher_app.py
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
 - 教学状态仅服务当前会话任务，不做长期学生画像、跨会话能力预测或个性化推荐。
 - Token 预算使用近似估算，并非供应商模型的精确 tokenizer；上线前应按实际模型上下文进一步校准。
+- 当前引用正确率与忠实度属于合成工具上的规则/轨迹指标，不等于经过人工校准的语义事实评分。
+- 本地 JSON 会话和日志没有用户登录、加密或访问控制，不应直接作为多用户生产服务。
 - 当前评测集由项目教材人工构造，不是独立公开基准；关键词覆盖率是字面匹配指标，应与人工检查和后续回答忠实度评测结合使用。
 
 ## 开发检查

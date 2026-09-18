@@ -4,6 +4,7 @@ __pycache__/
 
 # 本地运行产生的内容
 sessions/
+logs/
 data/milvus/
 *.db
 *.db-wal

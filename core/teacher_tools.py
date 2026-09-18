@@ -217,7 +217,8 @@ def create_teacher_tools(
             func=grade_answer,
             name="grade_answer",
             description=(
-                "学生提交答案、计算结果、解题过程或要求批改时必须使用；"
+                "学生提交答案、计算结果或哪怕一个不完整的解题步骤时必须使用，"
+                "即使学生同时说不会或请求提示；"
                 "若学生在回答当前练习，question 留空即可从教学状态读取。"
             ),
             args_schema=GradeAnswerInput,
