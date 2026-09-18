@@ -1,6 +1,6 @@
 # AI 智能教师
 
-一个面向高中生的个人 AI 教师项目。项目使用 Streamlit 提供交互界面，使用 LangChain 组织 Prompt、模型调用和会话记忆，并使用 DashScope Embedding + Milvus Lite 构建多学科教材知识库，实现基于教材的检索增强生成（RAG）。
+一个面向高中生的个人 AI 教师项目。项目使用 Streamlit 提供交互界面，使用 LangChain Agent 根据学生意图自动选择教材检索、练习生成或答案批改工具，并使用 DashScope Embedding + Milvus Lite 构建多学科教材知识库。
 
 ## 项目亮点
 
@@ -9,9 +9,11 @@
 - 教材 RAG：支持数学、物理、化学、历史、地理、政治、生物、英语、语文等学科资料检索。
 - 本地向量库：使用 Milvus Lite 保存向量和元数据，不需要部署远程 Milvus 服务。
 - 流式回答：通过 LangChain chain 流式输出 DeepSeek 回复。
-- 可选知识库：关闭时是普通对话，开启后按当前科目检索教材片段并注入 Prompt。
+- Agent 自动模式：默认自动判断直接回答、检索教材、生成练习或批改答案。
+- 经典对话模式：保留原有流式对话和手动 RAG 开关，作为稳定回退路径。
 - 可解释检索：回答下方展示教材来源、片段编号、内容预览和归一化相关度。
 - 检索评测：覆盖 9 个学科，输出 Recall@K、MRR 和关键词覆盖率报告。
+- Agent 评测：使用真实模型和合成工具测试工具选择，不向模型发送本地教材。
 
 ## 技术栈
 
@@ -114,11 +116,14 @@ python -m core.milvus_probe
 python -m core.rag --query "二次函数的顶点和对称轴" --subject 数学
 python -m core.rag --query "牛顿第二定律如何使用" --subject 物理
 python -m tests.test_rag_retrieval
+python -m tests.evaluate_agent_routing
 ```
 
 检索评测覆盖 9 个学科、42 道问题，会统计 Recall@1、Recall@3、MRR 和关键词覆盖率，并在 `evaluation_results/` 下生成 JSON 与 Markdown 报告。Embedding 查询会产生 DashScope API 调用。
 
 当前基线结果：Recall@1 `97.6%`、Recall@3 `100.0%`、MRR `0.988`、关键词覆盖率 `94.0%`。详细结果见 [RAG 检索评测](evaluation_results/rag_evaluation.md)。
+
+Agent 路由基线为 `9/9 (100%)`；第一次评测为 `6/9 (66.7%)`，收紧工具优先级和必须调用规则后全部通过。详细结果见 [Agent 路由评测](evaluation_results/agent_routing.md)。
 
 不调用外部 API 的单元测试：
 
@@ -135,7 +140,14 @@ python -m pytest -q
 streamlit run ai_teacher_app.py
 ```
 
-打开浏览器后，在侧边栏选择学科、教师性别和教学风格。勾选“启用教材知识库”后，当前问题会先检索对应科目的教材，再由 DeepSeek 根据检索片段回答。
+打开浏览器后，在侧边栏选择学科、教师性别和教学风格。默认开启“Agent 自动模式”，用户无需手动决定是否检索。例如：
+
+- “二次函数的顶点公式是什么？”→ `search_textbook`
+- “给我出一道二次函数基础题，先不要答案。”→ `generate_exercise`
+- “题目是……我的答案是……请批改。”→ `grade_answer`
+- “今天学习有点累，鼓励我一下。”→ 直接回答，不调用工具
+
+关闭 Agent 自动模式后，会回到原有经典对话，可手动选择是否启用教材知识库。
 
 ## RAG 工作原理
 
@@ -150,6 +162,19 @@ streamlit run ai_teacher_app.py
   → DeepSeek 流式回答
 ```
 
+## Agent 工作原理
+
+```text
+学生请求
+  → DeepSeek 判断意图
+  → search_textbook / generate_exercise / grade_answer / 直接回答
+  → 工具结果返回 Agent
+  → 组织最终教师回答
+  → 保存用户消息和最终回答
+```
+
+工具调用轨迹不会混入用户可见的聊天历史；界面只显示最终回答、使用过的工具名称和真实教材来源。`AGENT_RECURSION_LIMIT` 限制单次 Agent 的最大执行步数，防止异常循环。
+
 `source`、`file_name`、`subject` 和 `chunk_index` 会随文本块一起保存，因此应用可以知道回答使用了哪些教材资料。
 
 检索相关度统一映射到 `0～1`，数值越大代表越相关。可通过 `RAG_SCORE_THRESHOLD` 过滤低相关片段；默认 `0.0` 表示先保留结果并通过评测观察分数分布，再按实际数据选择阈值，避免凭经验误删有效资料。
@@ -158,7 +183,7 @@ streamlit run ai_teacher_app.py
 
 - 不包含用户登录、权限系统和远程部署。
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
-- 当前 Agent 和联网工具不是核心依赖。项目优先保证确定性的教材检索和教学回答流程。
+- 当前练习题及参考答案尚未作为独立教学状态持久化；跨轮“刚才那道题”的可靠关联将在后续教学状态阶段完善。
 - 当前评测集由项目教材人工构造，不是独立公开基准；关键词覆盖率是字面匹配指标，应与人工检查和后续回答忠实度评测结合使用。
 
 ## 开发检查

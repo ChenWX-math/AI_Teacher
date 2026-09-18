@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-09-18T12:19:56+08:00",
+  "total": 9,
+  "passed": 9,
+  "accuracy": 1.0,
+  "details": [
+    {
+      "input": "二次函数的顶点坐标公式是什么？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true
+    },
+    {
+      "input": "等差数列的通项公式怎么写？",
+      "expected": [
+        "search_textbook"
+      ],
+      "actual": [
+        "search_textbook"
+      ],
+      "passed": true
+    },
+    {
+      "input": "请根据二次函数给我出一道基础题，先不要答案。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true
+    },
+    {
+      "input": "给我来一道稍难的函数选择题，并附答案。",
+      "expected": [
+        "generate_exercise"
+      ],
+      "actual": [
+        "generate_exercise"
+      ],
+      "passed": true
+    },
+    {
+      "input": "题目：求 y=x²-2x+1 的顶点。我的答案是 (1,0)，请批改。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true
+    },
+    {
+      "input": "题目：2x+1=5。我的解答是 x=3，帮我看看哪里错了。",
+      "expected": [
+        "grade_answer"
+      ],
+      "actual": [
+        "grade_answer"
+      ],
+      "passed": true
+    },
+    {
+      "input": "你好，你是谁？",
+      "expected": [],
+      "actual": [],
+      "passed": true
+    },
+    {
+      "input": "今天学习有点累，鼓励我一下。",
+      "expected": [],
+      "actual": [],
+      "passed": true
+    },
+    {
+      "input": "帮我制定一个今晚复习数学的简单安排。",
+      "expected": [],
+      "actual": [],
+      "passed": true
+    }
+  ]
+}

@@ -7,6 +7,8 @@ from core.memory import get_session_history
 from core.prompt_builder import build_chat_prompt
 from core.rag import KnowledgeBase
 from core.session_manager import SessionManager
+from core.teacher_agent import build_teacher_agent, run_teacher_agent
+from core.teacher_tools import create_teacher_tools
 from prompts.prompt_manager import PromptManager
 
 st.set_page_config(page_title="AI智能教师", page_icon="🧑‍🏫", layout="wide")
@@ -59,6 +61,19 @@ def extract_text(chunk):
         return "".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in content)
     return str(content)
 
+
+def render_sources(source_records):
+    """在回答下方展示本次检索实际使用的教材来源。"""
+    if not source_records:
+        return
+    with st.expander(f"📚 参考教材（{len(source_records)} 条）"):
+        for source in source_records:
+            st.markdown(
+                f"**{source['label']} · {source['source']} · "
+                f"片段 {source['chunk_index']} · 相关度 {source['score']:.1%}**"
+            )
+            st.text(source["preview"])
+
 with st.sidebar:
     st.subheader("AI 教师设置")
     # on_click 回调在 widget 渲染前执行，避免 StreamlitWidgetAlreadyInstantiatedError
@@ -84,10 +99,20 @@ with st.sidebar:
     gender = st.selectbox("性别", ["男", "女"], key=session_manager.GENDER_KEY)
     personality = st.text_input("性格", placeholder="如：温柔耐心、擅长用生活例子讲解",
                                 key=session_manager.PERSONALITY_KEY)
-    use_knowledge = st.checkbox("启用教材知识库", value=False,
-                                help="开启后先从当前科目的资料中检索，再让教师回答。")
+    agent_mode = st.toggle(
+        "Agent 自动模式",
+        value=True,
+        help="开启后由 AI 自动判断直接回答、检索教材、生成练习或批改答案。",
+    )
+    use_knowledge = False
+    if not agent_mode:
+        use_knowledge = st.checkbox(
+            "启用教材知识库",
+            value=False,
+            help="经典模式下手动决定是否先检索当前科目教材。",
+        )
     top_k = st.slider("检索片段数", min_value=1, max_value=6, value=3,
-                      disabled=not use_knowledge)
+                      disabled=not (agent_mode or use_knowledge))
     if st.button("🧹 清空当前会话", use_container_width=True):
         session_manager.clear_current_session()
         st.rerun()
@@ -101,8 +126,10 @@ if not current_session:
     st.info("点击左侧「➕ 新建会话」开始对话。")
     st.stop()
 
+mode_label = "Agent 自动模式" if agent_mode else "经典对话模式"
 st.caption(
-    f"当前会话：{current_session} · {subject}教师 · {gender} · {personality or '未设置性格'}"
+    f"当前会话：{current_session} · {subject}教师 · {gender} · "
+    f"{personality or '未设置性格'} · {mode_label}"
 )
 
 history = session_manager.get_history()
@@ -127,36 +154,71 @@ if user_prompt:
     with st.chat_message("assistant"):
         placeholder, full_response = st.empty(), ""
         try:
-            context = ""
-            retrieved_with_scores = []
-            if use_knowledge:
-                knowledge_base = get_knowledge_base()
-                retrieved_with_scores = knowledge_base.search_with_scores(
-                    user_prompt, subject=subject, k=top_k
+            if agent_mode:
+                tools = create_teacher_tools(
+                    subject=subject,
+                    top_k=top_k,
+                    knowledge_base_loader=get_knowledge_base,
+                    llm_factory=lambda: get_llm(streaming=False, temperature=0.2),
                 )
-                retrieved = [document for document, _score in retrieved_with_scores]
-                context = knowledge_base.format_context(retrieved)
-                if not context:
-                    st.info("知识库没有找到相关片段，将使用普通对话回答。")
-            chain = build_chain(subject, gender, personality, use_context=use_knowledge)
-            config = {"configurable": {"session_id": current_session}}
-            chain_input = {"input": user_prompt, "context": context}
-            for chunk in chain.stream(chain_input, config=config):  # type: ignore
-                text = extract_text(chunk)
-                if text:
-                    full_response += text
-                    placeholder.markdown(full_response)
-            if not full_response:
-                st.warning("模型没有返回文本内容，本次消息未写入历史。")
-            if retrieved_with_scores:
-                source_records = knowledge_base.source_records(retrieved_with_scores)
-                with st.expander(f"📚 参考教材（{len(source_records)} 条）"):
-                    for source in source_records:
-                        st.markdown(
-                            f"**{source['label']} · {source['source']} · "
-                            f"片段 {source['chunk_index']} · 相关度 {source['score']:.1%}**"
+                agent = build_teacher_agent(
+                    model=get_llm(streaming=False),
+                    tools=tools,
+                    subject=subject,
+                    gender=gender,
+                    personality=personality,
+                )
+                try:
+                    with st.spinner("AI 教师正在判断并使用合适的教学工具..."):
+                        agent_history = session_manager.get_history()
+                        if agent_history is None:
+                            raise RuntimeError("当前会话不可用，请新建会话后重试。")
+                        agent_result = run_teacher_agent(
+                            agent,
+                            user_input=user_prompt,
+                            history=agent_history,
                         )
-                        st.text(source["preview"])
+                    full_response = agent_result.answer
+                    placeholder.markdown(full_response)
+                    if agent_result.tool_names:
+                        st.caption("已使用工具：" + "、".join(agent_result.tool_names))
+                    st.caption(f"Agent 耗时：{agent_result.duration_ms / 1000:.1f} 秒")
+                    render_sources(agent_result.sources)
+                except Exception:
+                    st.warning("Agent 模式暂时不可用，已自动回退为经典回答。")
+                    fallback_chain = build_chain(subject, gender, personality, use_context=False)
+                    fallback_config = {"configurable": {"session_id": current_session}}
+                    for chunk in fallback_chain.stream(
+                        {"input": user_prompt, "context": ""}, config=fallback_config
+                    ):
+                        text = extract_text(chunk)
+                        if text:
+                            full_response += text
+                            placeholder.markdown(full_response)
+            else:
+                context = ""
+                retrieved_with_scores = []
+                if use_knowledge:
+                    knowledge_base = get_knowledge_base()
+                    retrieved_with_scores = knowledge_base.search_with_scores(
+                        user_prompt, subject=subject, k=top_k
+                    )
+                    retrieved = [document for document, _score in retrieved_with_scores]
+                    context = knowledge_base.format_context(retrieved)
+                    if not context:
+                        st.info("知识库没有找到相关片段，将使用普通对话回答。")
+                chain = build_chain(subject, gender, personality, use_context=use_knowledge)
+                config = {"configurable": {"session_id": current_session}}
+                chain_input = {"input": user_prompt, "context": context}
+                for chunk in chain.stream(chain_input, config=config):  # type: ignore
+                    text = extract_text(chunk)
+                    if text:
+                        full_response += text
+                        placeholder.markdown(full_response)
+                if not full_response:
+                    st.warning("模型没有返回文本内容，本次消息未写入历史。")
+                if retrieved_with_scores:
+                    render_sources(knowledge_base.source_records(retrieved_with_scores))
         except (EnvironmentError, ValueError) as exc:
             st.error(str(exc))
         except Exception as exc:

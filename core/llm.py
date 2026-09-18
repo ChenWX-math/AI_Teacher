@@ -22,7 +22,7 @@ DEFAULT_MODEL_NAME = "deepseek-flash"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 
-def get_llm() -> ChatOpenAI:
+def get_llm(*, streaming: bool = True, temperature: float | None = None) -> ChatOpenAI:
     """返回一个封装好 DeepSeek 的 ChatOpenAI 实例。
 
     Returns:
@@ -33,11 +33,13 @@ def get_llm() -> ChatOpenAI:
         model=get_optional("DEEPSEEK_MODEL", DEFAULT_MODEL_NAME),
         api_key=api_key,  # type: ignore
         base_url=get_optional("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL),
-        temperature=get_optional_float(
-            "DEEPSEEK_TEMPERATURE", 0.7, minimum=0.0, maximum=2.0
+        temperature=(
+            get_optional_float("DEEPSEEK_TEMPERATURE", 0.7, minimum=0.0, maximum=2.0)
+            if temperature is None
+            else temperature
         ),
         timeout=get_optional_float("DEEPSEEK_TIMEOUT_SECONDS", 60.0, minimum=1.0),
         max_retries=get_optional_int("DEEPSEEK_MAX_RETRIES", 2, minimum=0),
-        streaming=True,
+        streaming=streaming,
         extra_body={"thinking": {"type": "disabled"}},  # 关闭推理思考，直接输出正文
     )
