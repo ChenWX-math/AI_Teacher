@@ -2,7 +2,14 @@
 
 import pytest
 
-from core.config import get_milvus_uri, get_optional_float, get_optional_int
+from core.config import (
+    get_app_backend,
+    get_fastapi_port,
+    get_milvus_uri,
+    get_optional_float,
+    get_optional_int,
+    get_storage_backend,
+)
 
 
 def test_remote_milvus_uri_does_not_require_local_path(monkeypatch):
@@ -32,3 +39,21 @@ def test_float_config_enforces_range(monkeypatch):
 
     with pytest.raises(ValueError, match="小于等于 2.0"):
         get_optional_float("TEST_FLOAT", 0.7, minimum=0.0, maximum=2.0)
+
+
+def test_storage_and_app_backend_defaults(monkeypatch):
+    monkeypatch.delenv("STORAGE_BACKEND", raising=False)
+    monkeypatch.delenv("APP_BACKEND", raising=False)
+
+    assert get_storage_backend() == "json"
+    assert get_app_backend() == "local"
+
+
+def test_invalid_backend_and_port_are_rejected(monkeypatch):
+    monkeypatch.setenv("STORAGE_BACKEND", "redis")
+    monkeypatch.setenv("FASTAPI_PORT", "0")
+
+    with pytest.raises(ValueError, match="json 或 postgres"):
+        get_storage_backend()
+    with pytest.raises(ValueError, match="大于等于 1"):
+        get_fastapi_port()

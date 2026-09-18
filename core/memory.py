@@ -1,147 +1,139 @@
-"""
-LangChain 记忆（会话持久化）模块
+"""LangChain 会话历史兼容层。
 
-用自定义的 JsonChatHistory 实现 BaseChatMessageHistory：把每个会话的消息历史
-持久化到 sessions/{session_id}.json。
-
-LangChain 1.x 的 BaseChatMessageHistory 约定：
-    - 需要实现 messages 属性（读）、add_messages（批量写）、clear（清空）
-    - add_message（单条）会默认委托给 add_messages，不用重复实现
+旧调用仍可使用 ``JsonChatHistory`` 和模块级 CRUD 函数；默认实现改为通过
+Repository 接口选择 JSON 或 PostgreSQL 后端。
 """
 
-import json
+from __future__ import annotations
+
 import os
-from datetime import datetime
-from uuid import uuid4
+from pathlib import Path
+from typing import Any
 
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import messages_from_dict, messages_to_dict
 
-# sessions 目录固定放在项目根目录（AI_Teacher/）下
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SESSIONS_DIR = os.path.join(_PROJECT_ROOT, "sessions")
+from core.config import PROJECT_ROOT
+from core.repositories.base import StorageRepository
+from core.repositories.factory import get_repository
+from core.repositories.json_repository import JsonStorageRepository, create_session_id
+
+SESSIONS_DIR = os.fspath(PROJECT_ROOT / "sessions")
 
 
-class JsonChatHistory(BaseChatMessageHistory):
-    """把消息历史持久化到本地 JSON 文件的历史存储。"""
+def _repository(
+    directory: str | Path | None = None,
+    repository: StorageRepository | None = None,
+) -> StorageRepository:
+    if repository is not None:
+        return repository
+    if directory is not None:
+        return JsonStorageRepository(directory)
+    return get_repository()
 
-    def __init__(self, session_id, directory=None):
-        """初始化一个会话历史。
 
-        Args:
-            session_id (str): 会话 ID，对应文件 sessions/{session_id}.json。
-            directory (str, optional): 存储目录，默认 SESSIONS_DIR。
-        """
+class RepositoryChatHistory(BaseChatMessageHistory):
+    """把 LangChain 消息序列持久化到选定的 Repository。"""
+
+    def __init__(self, session_id: str, repository: StorageRepository):
         self.session_id = session_id
-        self.directory = directory or SESSIONS_DIR
-        os.makedirs(self.directory, exist_ok=True)
-        self._path = os.path.join(self.directory, f"{session_id}.json")
+        self.repository = repository
 
     @property
     def messages(self):
-        """读取当前会话的全部消息（文件不存在时返回空列表）。"""
-        if not os.path.exists(self._path):
-            return []
         try:
-            with open(self._path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return messages_from_dict(data)
-        except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
-            raise ValueError(f"会话文件损坏或无法读取：{self._path}（{exc}）") from exc
+            return messages_from_dict(self.repository.load_messages(self.session_id))
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            raise ValueError(f"会话文件损坏或无法读取：{self.session_id}（{exc}）") from exc
 
-    def add_messages(self, messages):
-        """批量追加消息并写回文件（读旧 + 追加新，再整体落盘）。
+    def add_messages(self, messages) -> None:
+        self.repository.append_messages(self.session_id, messages_to_dict(list(messages)))
 
-        Args:
-            messages (Sequence[BaseMessage]): 要追加的消息列表。
-        """
-        all_messages = list(self.messages) + list(messages)
-        with open(self._path, "w", encoding="utf-8") as f:
-            # ensure_ascii=False：中文不转义成 \uXXXX
-            json.dump(messages_to_dict(all_messages), f, ensure_ascii=False, indent=2)
+    def clear(self) -> None:
+        self.repository.clear_messages(self.session_id)
 
-    def clear(self):
-        """清空当前会话的所有消息。"""
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump([], f, ensure_ascii=False)
+
+class JsonChatHistory(RepositoryChatHistory):
+    """保留原公开类名，并显式使用 JSON 后端。"""
+
+    def __init__(self, session_id: str, directory: str | Path | None = None):
+        json_repository = JsonStorageRepository(directory or SESSIONS_DIR)
+        super().__init__(session_id, json_repository)
 
     @property
-    def path(self):
-        return self._path
+    def path(self) -> str:
+        return os.fspath(self.repository._messages_path(self.session_id))  # type: ignore[attr-defined]
 
 
-def create_session_id():
-    """仅生成 ID；随机后缀避免快速点击或多个页面创建时重名。"""
-    return f"{datetime.now():%Y-%m-%d_%H-%M-%S-%f}_{uuid4().hex[:8]}"
+def create_session(
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+    title: str | None = None,
+) -> str:
+    return _repository(directory, repository).create_session(title=title).id
 
 
-def create_session(directory=None):
-    """创建空会话文件并返回 ID，让侧边栏能立即列出新会话。"""
-    while True:
-        session_id = create_session_id()
-        history = JsonChatHistory(session_id, directory=directory)
-        try:
-            # x 模式只创建新文件；即使 ID 意外重复，也不会覆盖已有历史。
-            with open(history.path, "x", encoding="utf-8") as f:
-                json.dump([], f, ensure_ascii=False)
-        except FileExistsError:
-            continue
-        return session_id
+def list_sessions(
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+) -> list[str]:
+    return [record.id for record in _repository(directory, repository).list_sessions()]
 
 
-def list_sessions(directory=None):
-    directory = directory or SESSIONS_DIR
-    os.makedirs(directory, exist_ok=True)
-    return sorted(
-        (
-            name[:-5]
-            for name in os.listdir(directory)
-            if name.endswith(".json")
-            and not name.endswith((".meta.json", ".state.json"))
-        ),
-        reverse=True,
-    )
+def delete_session(
+    session_id: str,
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+) -> None:
+    _repository(directory, repository).delete_session(session_id)
 
 
-def delete_session(session_id, directory=None):
-    directory = directory or SESSIONS_DIR
-    history = JsonChatHistory(session_id, directory=directory)
-    if os.path.exists(history.path):
-        os.remove(history.path)
-    meta_path = os.path.join(directory, f"{session_id}.meta.json")
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
-    state_path = os.path.join(directory, f"{session_id}.state.json")
-    if os.path.exists(state_path):
-        os.remove(state_path)
+def save_session_meta(
+    session_id: str,
+    meta: dict[str, Any],
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+) -> None:
+    repo = _repository(directory, repository)
+    if isinstance(repo, JsonStorageRepository):
+        repo.save_session_meta(session_id, meta)
+    else:
+        repo.update_session(session_id, settings=meta)
 
 
-def save_session_meta(session_id, meta, directory=None):
-    """把科目/性别/性格等设置持久化到 {session_id}.meta.json。"""
-    directory = directory or SESSIONS_DIR
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, f"{session_id}.meta.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(meta, f, ensure_ascii=False)
+def load_session_meta(
+    session_id: str,
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+) -> dict[str, Any]:
+    repo = _repository(directory, repository)
+    if isinstance(repo, JsonStorageRepository):
+        return repo.load_session_meta(session_id)
+    record = repo.get_session(session_id)
+    return dict(record.settings) if record else {}
 
 
-def load_session_meta(session_id, directory=None):
-    """读取 {session_id}.meta.json；文件不存在或损坏时返回空字典。"""
-    directory = directory or SESSIONS_DIR
-    path = os.path.join(directory, f"{session_id}.meta.json")
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (json.JSONDecodeError, OSError, TypeError):
-        return {}
+def get_session_history(
+    session_id: str,
+    repository: StorageRepository | None = None,
+) -> RepositoryChatHistory:
+    return RepositoryChatHistory(session_id, repository or get_repository())
 
 
-def get_session_history(session_id):
-    """工厂函数：返回指定 session_id 对应的 JsonChatHistory 实例。
-
-    供 RunnableWithMessageHistory(get_session_history=...) 使用。
-    """
-    return JsonChatHistory(session_id)
+__all__ = [
+    "JsonChatHistory",
+    "RepositoryChatHistory",
+    "SESSIONS_DIR",
+    "create_session",
+    "create_session_id",
+    "delete_session",
+    "get_session_history",
+    "list_sessions",
+    "load_session_meta",
+    "save_session_meta",
+]

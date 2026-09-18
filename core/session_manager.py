@@ -13,6 +13,8 @@ from core.memory import (
     load_session_meta,
     save_session_meta,
 )
+from core.repositories.base import StorageRepository
+from core.repositories.factory import get_repository
 from core.teaching_state import clear_teaching_state
 
 
@@ -25,8 +27,9 @@ class SessionManager:
     GENDER_KEY = "_gender_widget"
     PERSONALITY_KEY = "_personality_widget"
 
-    def __init__(self, state=None):
+    def __init__(self, state=None, repository: StorageRepository | None = None):
         self.state = state if state is not None else st.session_state
+        self.repository = repository or get_repository()
         self.ensure_current_session()
 
     @property
@@ -35,7 +38,7 @@ class SessionManager:
 
     @property
     def sessions(self):
-        return list_sessions()
+        return list_sessions(repository=self.repository)
 
     def ensure_current_session(self):
         """启动时优先加载最近的已有会话；没有会话时保持空白（None），不自动创建。
@@ -64,7 +67,7 @@ class SessionManager:
             self.state[self.GENDER_KEY] = "男"
             self.state[self.PERSONALITY_KEY] = ""
             return
-        meta = load_session_meta(session_id)
+        meta = load_session_meta(session_id, repository=self.repository)
         if meta.get("subject") is not None:
             self.state[self.SUBJECT_KEY] = meta["subject"]
         elif self.SUBJECT_KEY in self.state:
@@ -81,7 +84,7 @@ class SessionManager:
             "subject": self.state.get(self.SUBJECT_KEY),
             "gender": self.state.get(self.GENDER_KEY, "男"),
             "personality": self.state.get(self.PERSONALITY_KEY, ""),
-        })
+        }, repository=self.repository)
 
     def save_session_settings(self, subject, gender, personality):
         """由主程序在用户发送消息时调用，确保不切换时也能持久化设置。"""
@@ -92,7 +95,7 @@ class SessionManager:
             "subject": subject,
             "gender": gender,
             "personality": personality,
-        })
+        }, repository=self.repository)
 
     # ------------------------------------------------------------------
     # 会话切换操作（均作为 on_click / on_change 回调使用）
@@ -106,7 +109,7 @@ class SessionManager:
         """
         # 找最近创建的空会话（list_sessions 按时间降序排列）
         for sid in self.sessions:
-            if not get_session_history(sid).messages:
+            if not get_session_history(sid, self.repository).messages:
                 # 已有空会话：切过去复用，不新建
                 if sid != self.current_session:
                     self._save_current_settings()
@@ -116,7 +119,7 @@ class SessionManager:
                 return
         # 所有会话都有内容，才真正新建
         self._save_current_settings()
-        session_id = create_session()
+        session_id = create_session(repository=self.repository)
         self.state[self.CURRENT_KEY] = session_id
         self.state[self.PICKER_KEY] = session_id
         self._apply_session_settings(session_id)
@@ -141,7 +144,7 @@ class SessionManager:
         sid = self.current_session
         if not sid:
             return
-        delete_session(sid)
+        delete_session(sid, repository=self.repository)
         remaining = self.sessions
         next_id = remaining[0] if remaining else None
         self.state[self.CURRENT_KEY] = next_id
@@ -151,11 +154,11 @@ class SessionManager:
     def clear_current_session(self):
         """清空当前会话消息，但保留会话文件和 ID。"""
         if self.current_session:
-            get_session_history(self.current_session).clear()
-            clear_teaching_state(self.current_session)
+            get_session_history(self.current_session, self.repository).clear()
+            clear_teaching_state(self.current_session, repository=self.repository)
 
     def get_history(self):
         """返回当前会话的 LangChain 历史对象；无当前会话时返回 None。"""
         if not self.current_session:
             return None
-        return get_session_history(self.current_session)
+        return get_session_history(self.current_session, self.repository)

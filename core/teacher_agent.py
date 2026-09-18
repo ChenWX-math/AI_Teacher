@@ -15,7 +15,7 @@ from langchain_core.tools import BaseTool
 
 from core.config import get_optional_int
 from core.context_manager import LayeredContextManager
-from core.memory import JsonChatHistory
+from core.memory import RepositoryChatHistory
 from core.observability import bind_trace, record_event, reset_trace
 from core.teaching_state import (
     TeachingState,
@@ -93,11 +93,12 @@ def run_teacher_agent(
     agent,
     *,
     user_input: str,
-    history: JsonChatHistory,
+    history: RepositoryChatHistory,
     recursion_limit: int | None = None,
     context_manager: LayeredContextManager | None = None,
     teaching_state: TeachingState | None = None,
     state_saver: Callable[[TeachingState], None] | None = None,
+    strict_state_persistence: bool = False,
 ) -> TeacherAgentResult:
     """执行一次 Agent，并只把用户消息和最终回答写入现有聊天历史。"""
     if not user_input.strip():
@@ -120,6 +121,8 @@ def run_teacher_agent(
                     "teaching_state_save_failed session_id=%s",
                     history.session_id,
                 )
+                if strict_state_persistence:
+                    raise
         previous_messages = prepared_context.messages
     input_messages = [*previous_messages, user_message]
     started_at = perf_counter()

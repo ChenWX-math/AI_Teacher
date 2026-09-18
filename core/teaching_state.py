@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,9 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from core.memory import SESSIONS_DIR
+from core.repositories.base import StorageRepository
+from core.repositories.factory import get_repository
+from core.repositories.json_repository import JsonStorageRepository
 
 
 class ExerciseState(BaseModel):
@@ -50,13 +52,16 @@ def teaching_state_path(session_id: str, directory: str | Path | None = None) ->
 
 
 def load_teaching_state(
-    session_id: str, directory: str | Path | None = None
+    session_id: str,
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
 ) -> TeachingState:
-    path = teaching_state_path(session_id, directory)
-    if not path.exists():
-        return TeachingState()
+    repo = repository or (
+        JsonStorageRepository(directory) if directory is not None else get_repository()
+    )
     try:
-        data: Any = json.loads(path.read_text(encoding="utf-8"))
+        data: Any = repo.load_teaching_state(session_id)
         if not isinstance(data, dict):
             return TeachingState()
         return TeachingState.model_validate(data)
@@ -68,22 +73,25 @@ def save_teaching_state(
     session_id: str,
     state: TeachingState,
     directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
 ) -> None:
-    """原子写入状态，避免进程中断留下半个 JSON 文件。"""
-    path = teaching_state_path(session_id, directory)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    temp_path.write_text(
-        json.dumps(state.model_dump(mode="json"), ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    repo = repository or (
+        JsonStorageRepository(directory) if directory is not None else get_repository()
     )
-    os.replace(temp_path, path)
+    repo.save_teaching_state(session_id, state.model_dump(mode="json"))
 
 
-def clear_teaching_state(session_id: str, directory: str | Path | None = None) -> None:
-    path = teaching_state_path(session_id, directory)
-    if path.exists():
-        path.unlink()
+def clear_teaching_state(
+    session_id: str,
+    directory: str | Path | None = None,
+    *,
+    repository: StorageRepository | None = None,
+) -> None:
+    repo = repository or (
+        JsonStorageRepository(directory) if directory is not None else get_repository()
+    )
+    repo.clear_teaching_state(session_id)
 
 
 def format_teaching_state_for_agent(state: TeachingState) -> str:

@@ -2,6 +2,8 @@
 import streamlit as st
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
+from core.api_client import ApiStorageRepository
+from core.config import get_app_backend
 from core.context_manager import LayeredContextManager
 from core.llm import get_llm
 from core.memory import get_session_history
@@ -15,7 +17,9 @@ from prompts.prompt_manager import PromptManager
 
 st.set_page_config(page_title="AI智能教师", page_icon="🧑‍🏫", layout="wide")
 pm = PromptManager()
-session_manager = SessionManager()
+app_backend = get_app_backend()
+app_repository = ApiStorageRepository() if app_backend == "api" else None
+session_manager = SessionManager(repository=app_repository)
 
 @st.cache_resource(show_spinner=False)
 def get_knowledge_base():
@@ -104,7 +108,12 @@ with st.sidebar:
     agent_mode = st.toggle(
         "Agent 自动模式",
         value=True,
-        help="开启后由 AI 自动判断直接回答、检索教材、生成练习或批改答案。",
+        disabled=app_backend == "api",
+        help=(
+            "API 模式统一由后端 Agent 处理。"
+            if app_backend == "api"
+            else "开启后由 AI 自动判断直接回答、检索教材、生成练习或批改答案。"
+        ),
     )
     use_knowledge = False
     if not agent_mode:
@@ -131,7 +140,7 @@ if not current_session:
 mode_label = "Agent 自动模式" if agent_mode else "经典对话模式"
 st.caption(
     f"当前会话：{current_session} · {subject}教师 · {gender} · "
-    f"{personality or '未设置性格'} · {mode_label}"
+    f"{personality or '未设置性格'} · {mode_label} · 后端：{app_backend}"
 )
 
 history = session_manager.get_history()
@@ -156,11 +165,27 @@ if user_prompt:
     with st.chat_message("assistant"):
         placeholder, full_response = st.empty(), ""
         try:
-            if agent_mode:
+            if app_backend == "api":
+                with st.spinner("AI 教师正在通过后端处理请求..."):
+                    api_result = app_repository.chat(  # type: ignore[union-attr]
+                        session_id=current_session,
+                        message=user_prompt,
+                        subject=subject,
+                        gender=gender,
+                        personality=personality,
+                        top_k=top_k,
+                    )
+                full_response = api_result["answer"]
+                placeholder.markdown(full_response)
+                if api_result.get("tool_names"):
+                    st.caption("已使用工具：" + "、".join(api_result["tool_names"]))
+                st.caption(f"Agent 耗时：{api_result.get('duration_ms', 0) / 1000:.1f} 秒")
+                render_sources(api_result.get("sources", []))
+            elif agent_mode:
                 teaching_state = load_teaching_state(current_session)
 
                 def save_current_state(state):
-                    save_teaching_state(current_session, state)
+                    save_teaching_state(current_session, state) # type: ignore
 
                 tools = create_teacher_tools(
                     subject=subject,
@@ -214,7 +239,7 @@ if user_prompt:
                     fallback_chain = build_chain(subject, gender, personality, use_context=False)
                     fallback_config = {"configurable": {"session_id": current_session}}
                     for chunk in fallback_chain.stream(
-                        {"input": user_prompt, "context": ""}, config=fallback_config
+                        {"input": user_prompt, "context": ""}, config=fallback_config # type: ignore
                     ):
                         text = extract_text(chunk)
                         if text:

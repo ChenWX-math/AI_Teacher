@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/ChenWX-math/AI_Teacher/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenWX-math/AI_Teacher/actions/workflows/ci.yml)
 
-一个面向高中生的个人 AI 教师项目。项目使用 Streamlit 提供交互界面，使用 LangChain Agent 根据学生意图自动选择教材检索、练习生成或答案批改工具，并使用 DashScope Embedding + Milvus Lite 构建多学科教材知识库。
+一个面向高中生的 AI 教师项目。Streamlit 可直接调用本地核心逻辑，也可通过 FastAPI 后端运行；会话、消息和教学状态支持兼容旧数据的 JSON 存储与 PostgreSQL 存储，教材向量仍由 DashScope Embedding + Milvus Lite 管理。
 
 ## 项目亮点
 
 - 角色化教学：按学科、教师性别和教学风格生成系统 Prompt。
-- 多会话管理：支持创建、切换、删除会话，历史消息持久化到本地 JSON。
+- 多会话管理：支持创建、切换、删除会话，历史消息可持久化到 JSON 或 PostgreSQL。
 - 教材 RAG：支持数学、物理、化学、历史、地理、政治、生物、英语、语文等学科资料检索。
 - 本地向量库：使用 Milvus Lite 保存向量和元数据，不需要部署远程 Milvus 服务。
 - 流式回答：通过 LangChain chain 流式输出 DeepSeek 回复。
@@ -19,36 +19,47 @@
 - 教学闭环：按会话保存当前知识点、练习题和最近批改结果，支持省略式多轮指令。
 - 分层记忆：较早对话摘要 + 最近原文 + 结构化教学状态，并提供摘要失败回退。
 - 工程化验证：免费 CI、真实模型离线评测、脱敏 JSONL 日志和失败案例回归。
+- 双存储后端：本地 JSON 零数据库依赖，PostgreSQL 提供事务、并发和后续多用户扩展基础。
+- 后端 API：FastAPI 提供健康检查、会话 CRUD、消息读取和复用现有 Agent 的聊天接口。
 
 ## 系统架构
 
 ```mermaid
 flowchart LR
-    U[学生 / Streamlit] --> A{Teacher Agent}
+    U[学生 / Streamlit] -->|APP_BACKEND=local| A
+    U -->|APP_BACKEND=api / HTTP| F[FastAPI / 应用服务]
+    F --> A{Teacher Agent}
     A -->|知识问答| R[search_textbook]
     A -->|出题| E[generate_exercise]
     A -->|提交答案| G[grade_answer]
     A -->|普通交流| L[DeepSeek]
     R --> M[(Milvus Lite)]
     M --> D[9 学科教材]
-    E --> S[(教学状态 JSON)]
-    G --> S
-    H[(聊天历史 JSON)] --> C[分层上下文]
-    S --> C
+    A --> P
+    E --> P[Repository Layer]
+    G --> P
+    P --> J[(JSON)]
+    P --> PG[(PostgreSQL)]
+    P --> C[摘要 + 最近原文 + 教学状态]
     C --> A
     A --> O[脱敏 JSONL 日志]
 ```
+
+PostgreSQL 只存会话、消息、摘要和结构化教学状态；Milvus Lite 继续专门存教材 chunks、embedding 与检索元数据，两者职责不混用。
 
 ## 技术栈
 
 | 模块       | 技术                                  |
 | ---------- | ------------------------------------- |
 | Web 界面   | Streamlit                             |
+| 后端 API   | FastAPI / Uvicorn                     |
 | LLM        | DeepSeek OpenAI-compatible API        |
 | LLM 编排   | LangChain 1.x / LCEL                  |
 | Embedding  | DashScope `text-embedding-v3`       |
 | 向量数据库 | Milvus Lite / PyMilvus                |
 | 会话记忆   | JSON 历史 + 结构化教学状态 + 分层摘要 |
+| 结构化存储 | JSON / PostgreSQL + SQLAlchemy 2.x    |
+| 数据库迁移 | Alembic                               |
 | 配置管理   | `python-dotenv`                     |
 
 ## 目录结构
@@ -68,8 +79,16 @@ AI_Teacher/
 │  ├─ teacher_tools.py            # 检索、出题、批改工具
 │  ├─ teacher_agent.py            # Agent 构建与执行
 │  ├─ observability.py            # 脱敏 JSONL 事件日志
+│  ├─ chat_service.py             # Streamlit/API 共用 Agent 应用服务
+│  ├─ database.py                 # SQLAlchemy 2.x 数据模型
+│  ├─ api_client.py               # Streamlit API 模式适配器
+│  ├─ repositories/               # 存储接口、JSON/PostgreSQL 实现
 │  ├─ rag.py                      # 文档切分、向量化、检索
 │  └─ milvus_probe.py             # Milvus 连接探针
+├─ api/                            # FastAPI 主程序、依赖与路由
+├─ alembic/                        # PostgreSQL schema migrations
+├─ alembic.ini
+├─ docker-compose.yml              # 本地 PostgreSQL
 ├─ prompts/
 │  ├─ prompt_manager.py
 │  └─ subject_prompts.json
@@ -109,7 +128,7 @@ pip install milvus-lite
 pip install faiss-cpu
 ```
 
-## 配置 API 和 Milvus
+## 配置模型、存储和 Milvus
 
 复制 `.env.example` 为 `.env`，填写真实密钥：
 
@@ -129,6 +148,12 @@ AGENT_CHARS_PER_TOKEN=1.5
 APP_LOG_PATH=logs/events.jsonl
 APP_LOG_USER_CONTENT=false
 
+STORAGE_BACKEND=json
+APP_BACKEND=local
+FASTAPI_HOST=127.0.0.1
+FASTAPI_PORT=8000
+API_BASE_URL=http://127.0.0.1:8000
+
 MILVUS_DB_PATH=D:\AI_Teacher_Milvus\ai_teacher_knowledge.db
 MILVUS_COLLECTION=ai_teacher_knowledge
 ```
@@ -136,6 +161,33 @@ MILVUS_COLLECTION=ai_teacher_knowledge
 程序会通过 `python-dotenv` 自动读取 `AI_Teacher/.env`。`.env`、会话记录和 Milvus 数据库已加入 `.gitignore`，不要上传或公开真实密钥。
 
 如果使用远程 Milvus，可改为配置 `MILVUS_URI` 和可选的 `MILVUS_TOKEN`；此时不需要 `MILVUS_DB_PATH`。
+
+### 两种存储模式
+
+- `STORAGE_BACKEND=json`：默认模式，无需 PostgreSQL；继续读取原有 `sessions/{id}.json`、`.meta.json` 和 `.state.json`。
+- `STORAGE_BACKEND=postgres`：FastAPI/正式后端模式，通过 `DATABASE_URL` 连接 PostgreSQL。
+
+业务代码只依赖 Repository 接口。JSON 后端保持旧 LangChain 消息序列化格式；PostgreSQL 后端在同一事务中提交一轮对话产生的消息与 teaching state。
+
+## 启动 PostgreSQL 与执行迁移
+
+在 `.env` 中为本地开发设置 `POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_DB` 与匹配的 `DATABASE_URL`，然后执行：
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+python -m alembic upgrade head
+```
+
+数据库数据保存在 Compose named volume `ai_teacher_postgres_data`。应用不会在启动时调用 `create_all`；正式 schema 始终由 Alembic 管理。
+
+真实 PostgreSQL Repository 测试需要显式指定测试数据库：
+
+```powershell
+$env:TEST_DATABASE_URL=$env:DATABASE_URL
+python -m pytest tests/test_postgres_integration.py -q
+Remove-Item Env:TEST_DATABASE_URL
+```
 
 ## 构建知识库
 
@@ -194,9 +246,43 @@ Remove-Item Env:RUN_INTEGRATION_TESTS
 
 ## 启动应用
 
+### JSON + Streamlit 本地模式
+
 ```powershell
+$env:STORAGE_BACKEND="json"
+$env:APP_BACKEND="local"
 streamlit run ai_teacher_app.py
 ```
+
+该模式不需要 PostgreSQL 或 FastAPI，适合本地快速运行并兼容已有会话。
+
+### FastAPI + PostgreSQL 模式
+
+先启动 PostgreSQL 并执行迁移，再在一个终端启动 API：
+
+```powershell
+$env:STORAGE_BACKEND="postgres"
+uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+可访问 `http://127.0.0.1:8000/health` 和 `http://127.0.0.1:8000/docs`。主要接口为：
+
+- `POST /sessions`
+- `GET /sessions`
+- `GET /sessions/{session_id}`
+- `DELETE /sessions/{session_id}`
+- `GET /sessions/{session_id}/messages`
+- `POST /chat`
+
+再在另一个终端启动 Streamlit API 模式：
+
+```powershell
+$env:APP_BACKEND="api"
+$env:API_BASE_URL="http://127.0.0.1:8000"
+streamlit run ai_teacher_app.py
+```
+
+API 模式下会话操作和聊天都走 HTTP；本地模式仍直接调用核心模块。迁移期间两条路径均可使用。
 
 打开浏览器后，在侧边栏选择学科、教师性别和教学风格。默认开启“Agent 自动模式”，用户无需手动决定是否检索。例如：
 
@@ -262,12 +348,12 @@ LangSmith 是可选能力：设置 `LANGSMITH_TRACING=true` 和 Key 后可使用
 
 ## 当前边界
 
-- 不包含用户登录、权限系统和远程部署。
+- 不包含用户登录、JWT/OAuth、权限系统和远程部署；数据库结构可在后续增加用户归属。
 - Milvus Lite 数据库是本地运行产物，不提交到 GitHub；克隆项目后需要重新执行 `python -m core.rag --build`。
 - 教学状态仅服务当前会话任务，不做长期学生画像、跨会话能力预测或个性化推荐。
 - Token 预算使用近似估算，并非供应商模型的精确 tokenizer；上线前应按实际模型上下文进一步校准。
 - 当前引用正确率与忠实度属于合成工具上的规则/轨迹指标，不等于经过人工校准的语义事实评分。
-- 本地 JSON 会话和日志没有用户登录、加密或访问控制，不应直接作为多用户生产服务。
+- JSON 模式和日志没有用户登录、加密或访问控制，不应直接作为多用户生产服务。
 - 当前评测集由项目教材人工构造，不是独立公开基准；关键词覆盖率是字面匹配指标，应与人工检查和后续回答忠实度评测结合使用。
 
 ## 开发检查
@@ -275,7 +361,7 @@ LangSmith 是可选能力：设置 `LANGSMITH_TRACING=true` 和 Key 后可使用
 提交代码前建议运行：
 
 ```powershell
-python -m compileall -q ai_teacher_app.py core prompts tests
+python -m compileall -q ai_teacher_app.py api core prompts tests alembic
 python -m pytest -q
 ruff check ai_teacher_app.py core prompts tests
 ```

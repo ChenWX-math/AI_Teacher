@@ -76,6 +76,7 @@ def create_teacher_tools(
     llm_factory: Callable[[], BaseChatModel],
     teaching_state: TeachingState | None = None,
     state_saver: Callable[[TeachingState], None] | None = None,
+    strict_state_persistence: bool = False,
 ) -> list[BaseTool]:
     """创建绑定当前学科的三个工具；知识库只在实际检索时加载。"""
     state = teaching_state if teaching_state is not None else TeachingState(subject=subject)
@@ -93,6 +94,8 @@ def create_teacher_tools(
             except Exception:
                 # 状态是增强能力，写盘失败不应吞掉已经生成的题目或批改结果。
                 logger.exception("teaching_state_save_failed subject=%s", subject)
+                if strict_state_persistence:
+                    raise
 
     if subject_changed:
         persist_state()

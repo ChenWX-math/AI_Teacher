@@ -68,3 +68,25 @@ def get_milvus_uri() -> str:
     # 配置远程 MILVUS_URI，仍错误地要求 MILVUS_DB_PATH。
     remote_uri = os.getenv("MILVUS_URI", "").strip()
     return remote_uri or get_required("MILVUS_DB_PATH")
+
+
+def get_storage_backend() -> str:
+    backend = get_optional("STORAGE_BACKEND", "json").lower()
+    if backend not in {"json", "postgres"}:
+        raise ValueError("STORAGE_BACKEND 必须是 json 或 postgres")
+    return backend
+
+
+def get_app_backend() -> str:
+    backend = get_optional("APP_BACKEND", "local").lower()
+    if backend not in {"local", "api"}:
+        raise ValueError("APP_BACKEND 必须是 local 或 api")
+    return backend
+
+
+def get_fastapi_host() -> str:
+    return get_optional("FASTAPI_HOST", "127.0.0.1")
+
+
+def get_fastapi_port() -> int:
+    return get_optional_int("FASTAPI_PORT", 8000, minimum=1)

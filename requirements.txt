@@ -23,3 +23,10 @@ streamlit>=1.40.0,<2.0.0
 
 # --- 工具库 ---
 python-dotenv>=1.0.0,<2.0.0
+
+# --- API / 结构化存储 ---
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+sqlalchemy>=2.0.0,<3.0.0
+psycopg[binary]>=3.2.0,<4.0.0
+alembic>=1.14.0,<2.0.0
