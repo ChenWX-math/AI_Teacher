@@ -77,7 +77,7 @@ AI_Teacher/
 ├─ tests/
 │  ├─ test_questions.json         # RAG 测试问题集
 │  └─ test_rag_retrieval.py       # 检索测试脚本
-├─ docs/                           # 失败案例、简历与面试材料
+├─ evaluation_results/             # RAG/Agent 指标与失败案例
 ├─ .github/workflows/ci.yml        # 免费静态检查与单元测试
 ├─ .env.example
 ├─ requirements-dev.txt           # 测试与代码检查依赖
@@ -254,7 +254,7 @@ Agent 每次运行会在 `logs/events.jsonl` 写入开始、完成或失败事�
 
 LangSmith 是可选能力：设置 `LANGSMITH_TRACING=true` 和 Key 后可使用 LangChain Trace；不配置不会影响本地日志或应用运行。
 
-历史失败与修复见 [失败案例](docs/failure_cases.md)，简历描述、讲解稿和面试追问见 [面试指南](docs/interview_guide.md)。
+历史失败与修复见 [评测失败案例](evaluation_results/failure_cases.md)。个人简历措辞和面试讲解不属于项目运行资产，因此不放入公开仓库。
 
 `source`、`file_name`、`subject` 和 `chunk_index` 会随文本块一起保存，因此应用可以知道回答使用了哪些教材资料。
 
